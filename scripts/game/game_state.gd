@@ -8,6 +8,7 @@ extends Node
 ##   --skip-story                    skip the dialogue before fights
 ##   --speed=<n>                     battle playback speed
 ##   --save-dir=<dir>                use a separate save profile (e.g. user://test/)
+##   --menu=<suitup|shop|achievements|hall>  open that screen on the title
 ##   --shots=<dir> --shot-every=<s> --shot-count=<n>
 ##                                   save screenshots, then quit (for checking the UI)
 ## Pass them after "--", e.g.  godot --path . -- --fight=copilot --auto
@@ -28,6 +29,7 @@ var test_fight := {}
 var auto_play := false
 var skip_story := false
 var save_dir := SaveGame.DIR
+var open_menu := "" ## --menu=suitup|shop|achievements|hall opens that screen on the title
 
 var _shots_dir := ""
 var _shot_every := 1.5
@@ -67,7 +69,8 @@ func new_run(party: Array) -> void:
 	meta.party = party
 	var outfits := {}
 	for id in party:
-		outfits[id] = Outfits.outfit_of(id, meta.outfits).id
+		var o := Outfits.outfit_of(id, meta.outfits)
+		outfits[id] = o.id if Outfits.owns(meta, o) else Outfits.default_for(id).id
 	run = Run.new_run(meta, randi(), party, outfits)
 	meta.runs += 1
 	save()
@@ -89,6 +92,7 @@ func _parse_args() -> void:
 		args[kv[0]] = kv[1] if kv.size() > 1 else "true"
 	auto_play = args.has("auto")
 	skip_story = args.has("skip-story")
+	open_menu = args.get("menu", "")
 	if args.has("speed"):
 		settings.battle_speed = float(args.speed)
 	if args.has("fight"):

@@ -42,11 +42,14 @@ const LIST := [
 	{"id": "sarah_ohio", "hero": "sarah", "name": "Ohio Hoodie", "desc": "The Great State.", "model": "sarah_ohio", "achievement": "stop_stealing"},
 ]
 
-## Party-wide unlocks: one outfit per hero, generated below.
+## Party-wide skins: one outfit per hero, generated below. Unlocked by an
+## achievement, or sold for Village Sauce on the Suit Up screen (`cost`).
 const PARTY_SKINS := [
 	{"suffix": "headphones", "name": "Headphones", "desc": "Noise-cancelling. Finally.", "achievement": "skip_track"},
 	{"suffix": "burger", "name": "Burger Uniform", "desc": "Paper hat and all.", "achievement": "extra_sauce"},
 	{"suffix": "golden", "name": "Golden Suit", "desc": "Overtime pays.", "achievement": "overtime"},
+	{"suffix": "casual", "name": "Casual Friday", "desc": "Jeans and a team quarter-zip.", "cost": 30, "palette": true},
+	{"suffix": "holiday", "name": "Ugly Holiday Sweater", "desc": "From the office party. Lights up.", "cost": 45},
 ]
 
 ## Transformed forms when the outfit doesn't define one: Cole's UW form, buff James.
@@ -57,8 +60,16 @@ static func all() -> Array:
 	var out := LIST.duplicate()
 	for s in PARTY_SKINS:
 		for id in HeroData.HERO_IDS:
-			out.append({"id": "%s_%s" % [id, s.suffix], "hero": id, "name": s.name, "desc": s.desc,
-				"model": "%s_%s" % [id, s.suffix], "achievement": s.achievement})
+			var o := {"id": "%s_%s" % [id, s.suffix], "hero": id, "name": s.name, "desc": s.desc}
+			if s.get("palette", false):
+				o.palette = "%s_%s" % [id, s.suffix]
+			else:
+				o.model = "%s_%s" % [id, s.suffix]
+			if s.has("achievement"):
+				o.achievement = s.achievement
+			if s.has("cost"):
+				o.cost = s.cost
+			out.append(o)
 	return out
 
 
@@ -101,6 +112,37 @@ static func owns(meta: Dictionary, o: Dictionary) -> bool:
 	if o.has("achievement") and not meta.achievements.has(o.achievement):
 		return false
 	return not o.has("cost") or meta.owned_outfits.has(o.id)
+
+
+## How the Suit Up screen shows an outfit: "wearing", "owned", "buy" or "locked".
+static func status(meta: Dictionary, o: Dictionary) -> String:
+	if outfit_of(o.hero, meta.outfits).id == o.id:
+		return "wearing"
+	if owns(meta, o):
+		return "owned"
+	if o.has("achievement") and not meta.achievements.has(o.achievement):
+		return "locked"
+	return "buy"
+
+
+## Buys a Sauce-priced outfit. Returns false if it isn't for sale, already owned,
+## or there isn't enough Village Sauce.
+static func buy(meta: Dictionary, o: Dictionary) -> bool:
+	if not o.has("cost") or owns(meta, o) or meta.sauce < o.cost:
+		return false
+	if o.has("achievement") and not meta.achievements.has(o.achievement):
+		return false
+	meta.sauce -= o.cost
+	meta.owned_outfits.append(o.id)
+	return true
+
+
+## Puts an owned outfit on its hero (used for the next run).
+static func equip(meta: Dictionary, o: Dictionary) -> bool:
+	if not owns(meta, o):
+		return false
+	meta.outfits[o.hero] = o.id
+	return true
 
 
 static func for_achievement(id: String) -> Array:

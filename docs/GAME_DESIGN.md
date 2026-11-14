@@ -440,8 +440,11 @@ added for the new bosses.
 - **Sam:** Classic (black dress), Witch Hat
 - **Sarah:** Classic (sweater, glasses), Colorguard Uniform
 
-**Unlockable:** see section 6. A few extras are sold for Village Sauce on the Suit Up
-screen.
+**Unlockable:** see section 6.
+
+**For Village Sauce** (on the Suit Up screen, one per hero):
+- Casual Friday (recolor): 30 Sauce
+- Ugly Holiday Sweater: 45 Sauce
 
 **In 3D:** each skin is a separate material set (texture swap), or a separate mesh
 for big changes like a suit, built on the same rig, so every skin works with every

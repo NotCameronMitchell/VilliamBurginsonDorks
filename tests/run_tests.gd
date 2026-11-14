@@ -652,6 +652,25 @@ func test_achievements_and_outfits() -> void:
 	check(got.any(func(a): return a.id == "who_you_gonna_call"), "achievement: Who You Gonna Call")
 	check(Outfits.owns(meta, Outfits.by_id("james_ghost")), "achievement skins unlock")
 	check(not Outfits.owns(meta, Outfits.by_id("sam_throne")), "locked skins stay locked")
+	# Suit Up: buying and wearing
+	var casual := Outfits.by_id("sam_casual")
+	check(Outfits.status(meta, casual) == "buy" and not Outfits.buy(meta, casual), "skins: can't buy without enough sauce")
+	meta.sauce = 100
+	check(Outfits.buy(meta, casual) and meta.sauce == 70 and Outfits.status(meta, casual) == "owned", "skins: buying spends sauce")
+	check(not Outfits.buy(meta, casual), "skins: can't buy twice")
+	check(not Outfits.buy(meta, Outfits.by_id("sam_throne")), "skins: achievement skins aren't for sale")
+	check(Outfits.equip(meta, casual) and Outfits.status(meta, casual) == "wearing", "skins: wearing a bought skin")
+	check(not Outfits.equip(meta, Outfits.by_id("sam_throne")), "skins: can't wear a locked skin")
+	check(Outfits.model_of(casual) == "sam~sam_casual", "skins: Casual Friday is a recolor")
+	var run := Run.new_run(meta, 1, ["sam", "cole", "cam", "james"], {"sam": meta.outfits.sam})
+	check(Run.build_battle(run, meta).hero("sam").model == "sam~sam_casual", "skins: the run uses the worn skin")
+	# Sauce Shop
+	meta.sauce = 20
+	check(MetaUpgrades.buy(meta, "vet") and MetaUpgrades.level(meta, "vet") == 1 and meta.sauce == 12, "sauce shop: buying a level")
+	check(not MetaUpgrades.buy(meta, "vet"), "sauce shop: can't afford the next level")
+	meta.sauce = 1000
+	meta.upgrades.second_wind = 1
+	check(not MetaUpgrades.buy(meta, "second_wind"), "sauce shop: maxed upgrades can't be bought")
 
 
 func test_saves() -> void:

@@ -1,26 +1,26 @@
 extends Node3D
-## Title screen: the heroes on a rotating battle platform, a party picker (any 4 of
-## the 6), and Continue / New Run. The full Suit Up screen (skins) comes later.
+## Title / main menu: the heroes on a rotating battle platform (in their skins) and
+## the menu: Continue, New run (Suit Up), Sauce Shop, Achievements, Hall of Fame.
 ## Placeholder shapes until the Blender models land in assets/models/.
 
 var _pivot := Node3D.new()
-var _picked: Array = []
-var _hero_buttons := {}
-var _start: Button
-var _note: Label
-var _t := 0.0
+var _menu: MenuPanels
+var _buttons: VBoxContainer
+var _stats: Label
+var _confirm_new := false
 
 
 func _ready() -> void:
 	if not Game.test_fight.is_empty():
 		Game.go_battle.call_deferred()
 		return
-	_picked = Game.default_party().duplicate()
 	_build_world()
 	_build_ui()
 	if Game.auto_play:
 		await get_tree().create_timer(1.0).timeout
-		_on_start()
+		_start_run(Game.default_party())
+	elif Game.open_menu != "":
+		_open(Game.open_menu)
 
 
 func _build_world() -> void:
@@ -39,15 +39,22 @@ func _build_world() -> void:
 	sun.shadow_enabled = true
 	add_child(sun)
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 3.0, 8.2)
-	cam.rotation_degrees = Vector3(-14, 0, 0)
+	cam.position = Vector3(1.6, 3.4, 8.6)
+	cam.rotation_degrees = Vector3(-17, 0, 0)
 	cam.fov = 45
 	add_child(cam)
+	_pivot.position = Vector3(-0.6, 0, 0)
 	add_child(_pivot)
+	_rebuild_heroes()
+
+
+func _rebuild_heroes() -> void:
+	for c in _pivot.get_children():
+		c.queue_free()
 	var plat := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
-	cyl.top_radius = 3.4
-	cyl.bottom_radius = 3.5
+	cyl.top_radius = 3.3
+	cyl.bottom_radius = 3.4
 	cyl.height = 0.2
 	plat.mesh = cyl
 	plat.material_override = _mat(Color("#c9e7a7"))
@@ -57,16 +64,17 @@ func _build_world() -> void:
 		var id: String = ids[i]
 		var spot := Node3D.new()
 		var a := TAU * i / ids.size()
-		spot.position = Vector3(sin(a) * 2.5, 0.1, cos(a) * 2.5)
+		spot.position = Vector3(sin(a) * 2.4, 0.1, cos(a) * 2.4)
 		_pivot.add_child(spot)
 		var s := 0.8 if id == "sam" else (0.92 if id == "sarah" else 1.0)
+		var o := Outfits.outfit_of(id, Game.meta.outfits)
 		var body := MeshInstance3D.new()
 		var cap := CapsuleMesh.new()
 		cap.radius = 0.3 * s
 		cap.height = 0.95 * s
 		body.mesh = cap
 		body.position.y = 0.5 * s
-		body.material_override = _mat(Color(HeroData.HEROES[id].color))
+		body.material_override = _mat(UnitView.skin_tint(Color(HeroData.HEROES[id].color), Outfits.model_of(o)))
 		spot.add_child(body)
 		var head := MeshInstance3D.new()
 		var sph := SphereMesh.new()
@@ -94,92 +102,86 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
 
-	var title := UITheme.label("VILLIAM BURGINSON DORKS", 60, UITheme.ACCENT, 18)
+	var title := UITheme.label("VILLIAM BURGINSON DORKS", 58, UITheme.ACCENT, 18)
 	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.offset_top = 28
+	title.offset_top = 24
 	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	root.add_child(title)
 
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_bottom = -18
+	panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	panel.offset_left = -400
+	panel.offset_right = -36
+	panel.offset_top = 30
+	panel.offset_bottom = 30
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	root.add_child(panel)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	panel.add_child(v)
-	var hint := UITheme.label("Pick your party (4 of 6)", 20)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(hint)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	v.add_child(row)
-	for id in HeroData.HERO_IDS:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.text = "%s\n%s" % [HeroData.HEROES[id].name, HeroData.HEROES[id].role]
-		b.custom_minimum_size = Vector2(150, 64)
-		b.add_theme_font_size_override("font_size", 17)
-		b.button_pressed = _picked.has(id)
-		b.toggled.connect(func(on): _toggle_hero(id, on))
-		_hero_buttons[id] = b
-		row.add_child(b)
-	_note = UITheme.label("", 16, UITheme.MUTED)
-	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(_note)
-	var actions := HBoxContainer.new()
-	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	actions.add_theme_constant_override("separation", 10)
-	v.add_child(actions)
+	_buttons = VBoxContainer.new()
+	_buttons.add_theme_constant_override("separation", 10)
+	panel.add_child(_buttons)
+
+	_menu = MenuPanels.new()
+	var top := CanvasLayer.new()
+	top.layer = 3
+	add_child(top)
+	top.add_child(_menu)
+	_menu.start_run.connect(_start_run)
+	_menu.changed.connect(func():
+		_rebuild_heroes()
+		_build_buttons())
+	_menu.closed.connect(_build_buttons)
+	_build_buttons()
+
+
+func _build_buttons() -> void:
+	for c in _buttons.get_children():
+		c.queue_free()
+	_confirm_new = false
 	if not Game.run.is_empty():
-		var cont := Button.new()
-		cont.text = "Continue run (stage %d)" % (Game.run.stage + 1)
-		cont.custom_minimum_size = Vector2(300, 58)
-		UITheme.tint_button(cont, UITheme.SUPPORT)
-		cont.pressed.connect(func(): Game.go_battle())
-		actions.add_child(cont)
-	_start = Button.new()
-	_start.text = "New run" if not Game.run.is_empty() else "Start"
-	_start.custom_minimum_size = Vector2(240, 58)
-	UITheme.tint_button(_start, UITheme.ACCENT)
-	_start.pressed.connect(_on_start)
-	actions.add_child(_start)
-	var stats := UITheme.label("Village Sauce: %d   Runs: %d   Achievements: %d/%d" % [Game.meta.sauce, Game.meta.runs, Game.meta.achievements.size(), Achievements.LIST.size()], 15, UITheme.DARK)
-	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(stats)
-	_sync()
-
-
-func _toggle_hero(id: String, on: bool) -> void:
-	if on and not _picked.has(id):
-		if _picked.size() >= HeroData.PARTY_SIZE:
-			_hero_buttons[id].set_pressed_no_signal(false)
-			_note.text = "Party is full. Tap someone to swap them out."
+		var info := Run.stage_info(Game.run.stage, Game.run.seed)
+		_buttons.add_child(_menu_button("Continue run", "%s, stage %d" % [info.title, Game.run.stage + 1], UITheme.SUPPORT, func(): Game.go_battle()))
+	var new_btn := _menu_button("New run" if not Game.run.is_empty() else "Start", "Pick your party and skins", UITheme.ACCENT, Callable())
+	new_btn.pressed.connect(func():
+		if not Game.run.is_empty() and not _confirm_new:
+			_confirm_new = true
+			new_btn.text = "Abandon current run?\nTap again to start fresh"
 			return
-		_picked.append(id)
-	elif not on:
-		_picked.erase(id)
-	_note.text = ""
-	_sync()
+		_open("suitup"))
+	_buttons.add_child(new_btn)
+	_buttons.add_child(_menu_button("Sauce Shop", "%d Village Sauce to spend" % Game.meta.sauce, Color("#ff9a1f"), func(): _open("shop")))
+	_buttons.add_child(_menu_button("Achievements", "%d of %d unlocked" % [Game.meta.achievements.size(), Achievements.LIST.size()], Color("#c08aff"), func(): _open("achievements")))
+	_buttons.add_child(_menu_button("Hall of Fame", "Best runs", Color("#6fd3ff"), func(): _open("hall")))
 
 
-func _sync() -> void:
-	_start.disabled = _picked.size() != HeroData.PARTY_SIZE
-	for id in _hero_buttons:
-		UITheme.tint_button(_hero_buttons[id], Color(HeroData.HEROES[id].color) if _picked.has(id) else Color("#dddddd"))
+func _menu_button(text: String, sub: String, color: Color, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = "%s\n%s" % [text, sub]
+	b.custom_minimum_size = Vector2(0, 74)
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_constant_override("line_spacing", -2)
+	UITheme.tint_button(b, color, 8)
+	if cb.is_valid():
+		b.pressed.connect(cb)
+	return b
 
 
-func _on_start() -> void:
-	if _picked.size() != HeroData.PARTY_SIZE:
+func _open(which: String) -> void:
+	match which:
+		"suitup": _menu.open_suit_up()
+		"shop": _menu.open_sauce_shop()
+		"achievements": _menu.open_achievements()
+		"hall": _menu.open_hall_of_fame()
+
+
+func _start_run(party: Array) -> void:
+	if party.size() != HeroData.PARTY_SIZE:
 		return
-	Game.new_run(_picked)
+	Game.new_run(party)
 	Game.go_battle()
 
 
 func _process(delta: float) -> void:
-	_t += delta
 	_pivot.rotation.y += delta * 0.3
 
 

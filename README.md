@@ -30,8 +30,16 @@ scripts/       shared game code (combat engine, data, saves)
 
 ## Playing
 
-Press **F5** in Godot (or run the project). On the title screen, pick 4 of the 6
-heroes and press Start. In battle:
+Press **F5** in Godot (or run the project). The main menu has:
+
+- **Start / New run:** opens **Suit Up**. Pick 4 of the 6 heroes and flip through
+  each hero's skins with `<` `>`. Wear the ones you own, buy Sauce skins, and see
+  which achievement unlocks the rest.
+- **Sauce Shop:** spend Village Sauce on permanent upgrades.
+- **Achievements:** all 22, with the skins each one unlocks.
+- **Hall of Fame:** your best runs.
+
+In battle:
 
 - **Tap a move** to use it. Moves that hit one enemy then ask you to tap a target
   (on the stage or on its name plate).
@@ -79,6 +87,7 @@ Village Sauce upgrades. This is the main balance check.
 - `scenes/battle/`: the battle screen: `battle_scene.gd` replays the engine's events;
   `battle_hud.gd` and `unit_plate.gd` are the UI; `unit_view.gd` and `arena.gd` the 3D stage
 - `scenes/run/run_overlay.gd`: loot, upgrade cards, shop and event panels
+- `scenes/menu/menu_panels.gd`: Suit Up, Sauce Shop, Achievements and Hall of Fame
 - `scripts/ui/ui_theme.gd`: colors, fonts and the panel/button style
 
 ## Status
@@ -91,6 +100,6 @@ Village Sauce upgrades. This is the main balance check.
 - [x] Run loop: stages, scaling, drafts, shop, events, achievements, skins, saves
 - [x] Battle scene and Pokemon-style HUD (placeholder models), with the run loop playable
   from the title: party pick, fights, upgrade picks, shop, events, game over
-- [ ] Suit Up screen (skins), Sauce Shop (meta upgrades), achievements list
+- [x] Main menu: Suit Up (party and skins), Sauce Shop, Achievements, Hall of Fame
 - [ ] First Blender models (heroes)
 - [ ] Overworld office map

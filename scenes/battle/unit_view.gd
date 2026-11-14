@@ -29,6 +29,24 @@ const ENEMY_LOOKS := {
 	"sauce_keeper": {"shape": "person", "color": "#e67e22", "scale": 1.2},
 }
 const SKIN := Color("#f1c7a5")
+## Placeholder body colors per skin, so skins show before the real models exist.
+const SKIN_TINTS := {
+	"_suit": "#2c3e50", "_golden": "#d4af37", "_burger": "#e74c3c", "_holiday": "#1e8449",
+	"_casual": "#3b5998", "_home": "#d01c2c", "_united": "#da291c", "_olemiss": "#14213d",
+	"_kith": "#eeeeee", "_gym": "#555555", "_polo": "#2e86c1", "_hoodie": "#34495e",
+	"_witch": "#1b1b2f", "_colorguard": "#8e44ad", "_newjob": "#2874a6", "_trucker": "#a04000",
+	"_stirrer": "#6c3483", "_ghost": "#a0c8ff", "_throne": "#9b5cff", "_trucksmarter": "#f39c12",
+	"_subaru": "#2e5cb8", "_ohio": "#bb0000", "_headphones": "",
+}
+
+
+## The placeholder body color for a hero wearing a skin.
+static func skin_tint(hero_color: Color, model_key: String) -> Color:
+	var k := model_key.split("~")[-1]
+	for suffix in SKIN_TINTS:
+		if k.ends_with(suffix) and SKIN_TINTS[suffix] != "":
+			return Color(SKIN_TINTS[suffix])
+	return hero_color
 
 var uid := 0
 var key := ""
@@ -144,6 +162,8 @@ func _placeholder(model_key: String) -> Node3D:
 	var body_c := color
 	if model_key.ends_with("_remix"):
 		body_c = color.darkened(0.35)
+	elif side == "hero":
+		body_c = skin_tint(color, model_key)
 	match shape:
 		"can":
 			var c := CylinderMesh.new()
