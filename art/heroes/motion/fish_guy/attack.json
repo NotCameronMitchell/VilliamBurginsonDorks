@@ -1,0 +1,11 @@
+{
+  "hero": "fish_guy",
+  "anim": "attack",
+  "prompt": "A person swings their arm overhead like a club and smacks down.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,0 +1,11 @@
+{
+  "hero": "fish_guy",
+  "anim": "ultimate",
+  "prompt": "A person swings their arm in big circles, then slams it down.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

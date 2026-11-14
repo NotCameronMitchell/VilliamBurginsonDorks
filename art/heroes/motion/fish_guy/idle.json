@@ -1,0 +1,11 @@
+{
+  "hero": "fish_guy",
+  "anim": "idle",
+  "prompt": "A person stands holding something in one hand, sniffing it and looking around.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

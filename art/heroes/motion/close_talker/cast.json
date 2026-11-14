@@ -1,0 +1,11 @@
+{
+  "hero": "close_talker",
+  "anim": "cast",
+  "prompt": "A person sips from a mug, then gestures while talking.",
+  "seconds": 2.0,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 60,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,0 +1,11 @@
+{
+  "hero": "loud_typer",
+  "anim": "ultimate",
+  "prompt": "A person hammers the air with both fists, faster and faster, then throws their arms up.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

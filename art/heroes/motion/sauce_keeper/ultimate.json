@@ -1,0 +1,11 @@
+{
+  "hero": "sauce_keeper",
+  "anim": "ultimate",
+  "prompt": "A man sweeps his arms around in a big circle, then thrusts both hands forward.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,0 +1,11 @@
+{
+  "hero": "reply_all",
+  "anim": "idle",
+  "prompt": "A person stands holding a laptop under one arm, impatiently tapping their foot.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

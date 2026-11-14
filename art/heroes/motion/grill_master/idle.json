@@ -1,0 +1,11 @@
+{
+  "hero": "grill_master",
+  "anim": "idle",
+  "prompt": "A man stands with his feet apart, flipping a spatula in his right hand.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

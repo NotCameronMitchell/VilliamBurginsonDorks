@@ -803,6 +803,10 @@ def paint_top(bd, look_top, model_id, S=1024):
                                                     (-0.009, -0.03))], tcol * 0.85)
         poly(cv, [fr.px(x, neck_rel + z) for x, z in ((-0.008, -0.03), (0.008, -0.03), (0.024, -0.33), (0.0, -0.37),
                                                     (-0.024, -0.33))], tcol)
+    if look_top.get("badge"):  # a name tag on the left chest
+        bx, by = fr.px(0.085, 0.0)
+        cv.rect(bx - 0.04 * ppm, by - 0.02 * ppm, bx + 0.04 * ppm, by + 0.02 * ppm, np.array([0.97, 0.97, 0.95]))
+        cv.rect(bx - 0.04 * ppm, by - 0.02 * ppm, bx + 0.04 * ppm, by - 0.009 * ppm, hexc(look_top.get("badge_color", "#ffd23f")))
     if look_top.get("buttons"):  # jacket front
         for z in (-0.27, -0.36):
             x0, y0 = fr.px(0.0, z)
@@ -944,7 +948,7 @@ def beard_alpha(bd, look):
     groups and its chin ("jaw") joint. (MakeHuman's "mouth" joint is not at the mouth.)"""
     face = look.get("face", {})
     kind = face.get("beard", "none")
-    if kind not in ("short", "stubble"):
+    if kind not in ("short", "stubble", "mustache"):
         return None
     eyes = eyes_of(bd)
     lips = bd.groups.get("lips")
@@ -979,7 +983,9 @@ def beard_alpha(bd, look):
     e = (ax / (mw + 0.003 * k)) ** 2 + (zr / (0.0095 * k)) ** 2
     a *= np.where(yr < 0.02 * k, sstep(0.8, 1.3, e), 1.0)
     a *= (bd.is_dom("Head", "Neck") & bd.body).astype(float)
-    return a * (0.95 if kind == "short" else 0.42)
+    if kind == "mustache":  # just the upper lip: above the lips, under the nose, at the front
+        a *= sstep(0.0, 0.004 * k, zr) * sstep(0.042 * k, 0.03 * k, ax) * sstep(0.03 * k, 0.018 * k, yr)
+    return a * (0.42 if kind == "stubble" else 0.95)
 
 
 def raster_alpha(bd, valpha, W, H):
@@ -1151,6 +1157,34 @@ def add_accessories(bd, rig, look, model_id):
                 faces.append((i * 10 + q, i * 10 + q2, (i + 1) * 10 + q2, (i + 1) * 10 + q))
         make_mesh_object("%s.cap_brim" % model_id, verts, faces, [[(0, 0)] * 4 for _ in faces],
                          [{B + "Head": 1.0}] * len(verts), [capm], None, rig)
+    if "visor" in acc:  # a sun visor: a band around the head and a brim in front, no crown
+        eye_z = eyes[0][2] if eyes else bd.j("Head")[2] + 0.5 * (bd.j("Head", "t")[2] - bd.j("Head")[2])
+        band_z = eye_z + 0.045 * k
+        sl = bd.is_dom("Head") & bd.body & (np.abs(bd.co[:, 2] - band_z) < 0.012 * k)
+        P = bd.co[sl]
+        cx, cy = float(P[:, 0].mean()), float(P[:, 1].mean())
+        rx = float(np.abs(P[:, 0] - cx).max()) + 0.02 * k
+        ry = float(np.abs(P[:, 1] - cy).max()) + 0.02 * k
+        vm = material("%s_visor" % model_id, hexc(look.get("visor_color", "#ffcc33")), rough=0.6)
+        ring = [Vector((cx + math.cos(a) * rx, cy + math.sin(a) * ry, band_z)) for a in np.linspace(0, 2 * math.pi, 28, endpoint=False)]
+        tube("%s.visor_band" % model_id, ring, (0.0035 * k, 0.02 * k), vm, rig, "Head", closed=True, seg=6, sq=6.0)
+        y0, z0 = cy - ry + 0.002, band_z - 0.012 * k
+        hw = 0.085 * k
+        pts, rad = [], []
+        for t in np.linspace(0, 1, 6):
+            pts.append(Vector((cx, y0 - 0.08 * t * k, z0 - 0.01 * t * t)))
+            rad.append((hw * (1 - 0.45 * t ** 1.6), 0.004))
+        verts, faces = [], []
+        for p, (rx_, ry_) in zip(pts, rad):
+            for q in range(10):
+                a = 2 * math.pi * q / 10
+                verts.append(p + Vector((math.cos(a) * rx_, 0, math.sin(a) * ry_)))
+        for i in range(len(pts) - 1):
+            for q in range(10):
+                q2 = (q + 1) % 10
+                faces.append((i * 10 + q, i * 10 + q2, (i + 1) * 10 + q2, (i + 1) * 10 + q))
+        make_mesh_object("%s.visor_brim" % model_id, verts, faces, [[(0, 0)] * 4 for _ in faces],
+                         [{B + "Head": 1.0}] * len(verts), [vm], None, rig)
     if eyes and ("glasses" in acc or "sunglasses" in acc):
         le, re = (Vector(eyes[0]), Vector(eyes[1]))
         sun = "sunglasses" in acc
@@ -1232,7 +1266,7 @@ def dress(rig, basemesh, model_id, look=None):
     bd.female = look.get("sex") == "f"  # tops drape over the bust (bust_drape)
     Hm = bd.height
     k = Hm / 1.8
-    skin_texture(bd, look, model_id)
+    skin_texture(bd, look, model_id, tint=look.get("skin_tint", 0.3))
     recolor_brows(rig, look, model_id)
     top, bottom = look["top"], look["bottom"]
     tt, bt = top["type"], bottom["type"]
@@ -1244,9 +1278,10 @@ def dress(rig, basemesh, model_id, look=None):
     gold = bottom.get("material") == "gold"
     bmat = material("%s_bottom" % model_id, image=plain_texture("%s_bottom" % model_id, bottom["color"]),
                     rough=0.38 if gold else 0.85, metal=GOLD_METAL if gold else 0.0)
-    if bt == "skirt":
+    if bt in ("skirt", "robe"):
         z_top = waist_z
-        z_hem = bd.j("LeftLeg")[2] - 0.06 * k
+        robe = bt == "robe"  # a robe falls to the ankles, flaring less
+        z_hem = (bd.j("LeftFoot")[2] + 0.05 * k) if robe else (bd.j("LeftLeg")[2] - 0.06 * k)
         skirt_r0 = None
         legs = bd.is_dom("Hips", "LeftUpLeg", "RightUpLeg") & bd.body & (bd.co[:, 2] <= z_top) & (bd.co[:, 2] >= z_hem)
         pts = bd.co[legs]
@@ -1259,7 +1294,7 @@ def dress(rig, basemesh, model_id, look=None):
             r0 = float(np.percentile(np.hypot(band_pts[:, 0], band_pts[:, 1] - cy), 95)) if len(band_pts) else 0.15 * k
             if skirt_r0 is None:
                 skirt_r0 = r0
-            r = max(r0 + 0.01 * k, skirt_r0) * (1 + 0.55 * t ** 1.3)
+            r = max(r0 + 0.01 * k, skirt_r0) * (1 + (0.32 if robe else 0.55) * t ** 1.3)
             rings.append([(math.cos(a) * r, cy + math.sin(a) * r * 0.85, z) for a in np.linspace(0, 2 * math.pi, seg, endpoint=False)])
         verts = [v for ring in rings for v in ring]
         faces = []
@@ -1336,8 +1371,32 @@ def dress(rig, basemesh, model_id, look=None):
     add_accessories(bd, rig, look, model_id)
     import accessories
     accessories.add(bd, rig, look, model_id)
+    if look.get("eye_glow"):
+        glow_eyes(rig, look["eye_glow"], model_id)
     if look.get("ghost"):
         ghostify(rig)
+
+
+def glow_material(name, color, strength=6.0):
+    """A material that glows in the color (emission, which the glTF export keeps)."""
+    m = material(name, hexc(color), rough=0.3)
+    bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf is not None:
+        for nm in ("Emission Color", "Emission"):
+            if nm in bsdf.inputs:
+                bsdf.inputs[nm].default_value = (*lin(hexc(color)), 1.0)
+        if "Emission Strength" in bsdf.inputs:
+            bsdf.inputs["Emission Strength"].default_value = strength
+    return m
+
+
+def glow_eyes(rig, color, model_id, strength=6.0):
+    """Eyes that glow (the Copilot's, under the hood)."""
+    m = glow_material("%s_eye_glow" % model_id, color, strength)
+    for o in rig.children_recursive:
+        if o.type == "MESH" and "high-poly" in o.name.lower():  # MakeHuman's eyes
+            for i in range(len(o.material_slots)):
+                o.material_slots[i].material = m
 
 
 # Top types: (default sleeves, neckline (front dip, back rise, V depth, V half-width in
@@ -1355,6 +1414,7 @@ TOP_STYLE = {
     "vest": ("none", (0.03, 0.01, 0.12, 0.7), 0.034, 0.9, False),
     "tank": ("none", (0.085, -0.03, 0.0, 0.6), 0.014, 0.55, False),
     "dress": ("cap", (0.04, 0.0, 0.0, 0.6), 0.010, 0.45, False),
+    "robe": ("long", (0.045, 0.0, 0.0, 0.6), 0.03, 0.95, False),  # with a "robe" bottom down to the ankles
 }
 POLO_COLLAR = [(0.0, -0.001), (-0.012, 0.0015), (-0.015, 0.004), (-0.009, 0.006), (0.002, 0.007), (0.018, 0.005),
                (0.022, 0.0025)]
@@ -1390,7 +1450,8 @@ def build_top(bd, rig, top, name, hem_z, waist_z, under=False, over=False):
     st = TOP_STYLE.get(tt, TOP_STYLE["tee"])
     sleeves = {"dress": "cap", "tank": "none", "vest": "none"}.get(tt, top.get("sleeves", st[0]))
     hips_z = bd.j("Hips")[2]
-    top_hem = {"dress": waist_z - 0.02 * k, "jacket": hips_z - 0.05 * k}.get(tt, hem_z)
+    # A robe's top ends at the waist, where its skirt starts (a rope belt covers the seam).
+    top_hem = {"dress": waist_z - 0.02 * k, "jacket": hips_z - 0.05 * k, "robe": waist_z - 0.02 * k}.get(tt, hem_z)
     nh = bd.j("Neck")
     z_side = nh[2] + 0.012 * Hm
     fd, br, vd, vh = st[1]

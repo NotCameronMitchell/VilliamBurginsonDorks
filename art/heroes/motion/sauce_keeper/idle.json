@@ -1,0 +1,11 @@
+{
+  "hero": "sauce_keeper",
+  "anim": "idle",
+  "prompt": "A man stands hugging something to his chest, looking around suspiciously.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

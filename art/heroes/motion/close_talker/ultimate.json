@@ -1,0 +1,11 @@
+{
+  "hero": "close_talker",
+  "anim": "ultimate",
+  "prompt": "A person steps forward and talks with big, wild hand gestures.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

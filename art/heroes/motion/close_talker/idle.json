@@ -1,0 +1,11 @@
+{
+  "hero": "close_talker",
+  "anim": "idle",
+  "prompt": "A person leans forward, gesturing with one hand while talking.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

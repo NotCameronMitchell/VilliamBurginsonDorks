@@ -1,0 +1,11 @@
+{
+  "hero": "fish_guy",
+  "anim": "victory",
+  "prompt": "A person raises one arm high in triumph.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

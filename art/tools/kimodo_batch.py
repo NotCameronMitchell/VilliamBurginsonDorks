@@ -102,13 +102,13 @@ def main():
         fetch_encoder()
         return
 
-    heroes = args.only.split(",") if args.only else list(H.HEROES) + list(H.BOSSES)
+    heroes = args.only.split(",") if args.only else list(H.HEROES) + list(H.BOSSES) + list(H.MINIONS)
     heroes = list(dict.fromkeys(H.motion_owner(h) for h in heroes))
     anims = args.anims.split(",") if args.anims else H.ANIMS
     jobs = []
     for hero in heroes:
-        if hero not in H.HEROES and hero not in H.BOSSES:
-            sys.exit("Unknown hero or boss '%s'" % hero)
+        if hero not in H.HEROES and hero not in H.BOSSES and hero not in H.MINIONS:
+            sys.exit("Unknown hero, boss or minion '%s'" % hero)
         for anim, m in H.motions(hero).items():
             if anim not in anims:
                 continue

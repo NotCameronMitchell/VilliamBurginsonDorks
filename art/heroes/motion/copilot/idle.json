@@ -1,0 +1,11 @@
+{
+  "hero": "copilot",
+  "anim": "idle",
+  "prompt": "A tall person stands perfectly still and menacing, the right elbow bent and the right fist held in front of the chest as if gripping a tall staff upright, the left arm hanging at the side, slowly turning their head.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

@@ -193,11 +193,11 @@ def detailed_ids():
     """Heroes, forms and bosses that now come from the detailed pipeline (hero_assemble.py)."""
     try:
         import hero_specs
-        return set(hero_specs.all_ids()) | set(hero_specs.boss_ids())
+        return set(hero_specs.all_ids()) | set(hero_specs.boss_ids()) | set(hero_specs.minion_ids())
     except Exception:
-        bosses = ["trucker", "sales_guy", "guardian", "ghost"]
-        return {"mason", "james", "cole", "cam", "sam", "sarah", "cole_uw", "james_buff"} | \
-            set(bosses) | {b + "_remix" for b in bosses}
+        bosses = ["trucker", "sales_guy", "guardian", "ghost", "copilot", "cashier", "grill_master", "sauce_keeper"]
+        return {"mason", "james", "cole", "cam", "sam", "sarah", "cole_uw", "james_buff",
+                "reply_all", "fish_guy", "loud_typer", "close_talker"} | set(bosses) | {b + "_remix" for b in bosses}
 
 
 def build_characters(only, render_dir, do_export):

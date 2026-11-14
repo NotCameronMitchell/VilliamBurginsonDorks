@@ -1,0 +1,11 @@
+{
+  "hero": "loud_typer",
+  "anim": "cast",
+  "prompt": "A person cups their hands around their mouth and yells.",
+  "seconds": 2.0,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 60,
+  "joints": 77,
+  "fps": 30
+}

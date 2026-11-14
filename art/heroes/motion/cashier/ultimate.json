@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "ultimate",
+  "prompt": "A person raises both arms and throws them forward with a big shout.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

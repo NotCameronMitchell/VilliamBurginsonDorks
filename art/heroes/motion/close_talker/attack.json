@@ -1,0 +1,11 @@
+{
+  "hero": "close_talker",
+  "anim": "attack",
+  "prompt": "A person leans in close and points at someone's face.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

@@ -35,8 +35,8 @@ LOOKS = {
     "james": {
         "sex": "m", "heads": 6.0, "build": 1.14,
         "skin": "#dfa983", "eyes": "#5a3d2b",
-        "hair": {"style": "wavy", "color": "#5b3a22"},
-        "face": {"brows": "#4a2e1a", "mouth": "grin", "beard": "short", "beard_color": "#4f321d"},
+        "hair": {"style": "wavy", "color": "#141110"},
+        "face": {"brows": "#1b1715", "mouth": "grin", "beard": "short", "beard_color": "#1d1917"},
         "top": {"type": "sweatshirt", "color": "#7a4a30", "sleeves": "long"},
         "bottom": {"type": "joggers", "color": "#6d412a"},
         "shoes": {"type": "sneakers", "color": "#ffffff", "sole": "#dcdcdc"},
@@ -77,8 +77,8 @@ LOOKS = {
     "sarah": {
         "sex": "f", "heads": 5.8, "build": 0.94,
         "skin": "#f2cfb4", "eyes": "#5a4636",
-        "hair": {"style": "longwavy", "color": "#3a261b"},
-        "face": {"brows": "#3a261b", "mouth": "smile", "beard": "none", "blush": True},
+        "hair": {"style": "longwavy", "color": "#141110"},
+        "face": {"brows": "#1b1715", "mouth": "smile", "beard": "none", "blush": True},
         "top": {"type": "sweater", "color": "#d77c9c", "sleeves": "long"},
         "bottom": {"type": "leggings", "color": "#1a1a1f"},
         "shoes": {"type": "sneakers", "color": "#2b2b33", "sole": "#e6e6e6"},
@@ -213,6 +213,85 @@ BOSS_LOOKS = {
         "shoes": {"type": "leather", "color": "#2a2a2a", "sole": "#111111"},
         "acc": ["lanyard"],
     }),
+    # The AI assistant as a grim reaper: a hooded robe, a face lost in shadow, glowing eyes,
+    # a scythe and a laptop.
+    "copilot": {
+        "sex": "m", "skin": "#15151f", "skin_tint": 0.92, "eye_glow": "#7fd4ff",
+        "hair": {"style": "none", "color": "#111111"},
+        "face": {"brows": "#111111", "beard": "none"},
+        "top": {"type": "robe", "color": "#1b1b2f", "sleeves": "long"},
+        "bottom": {"type": "robe", "color": "#1b1b2f"},
+        "shoes": {"type": "leather", "color": "#111122", "sole": "#08080c"},
+        "acc": ["hood", "scythe", "laptop", "cord"], "hood_color": "#141428", "cord_color": "#4a4a6a",
+    },
+    # The burger crew (Villiam Burginson's, the final fight).
+    "cashier": {
+        "sex": "f", "skin": "#c68c66", "skin_tint": 0.35,
+        "hair": {"style": "long", "color": "#2b1d14"},
+        "face": {"brows": "#2b1d14", "beard": "none", "blush": True},
+        "top": {"type": "polo", "color": "#e74c3c", "sleeves": "short", "badge": True},
+        "bottom": {"type": "pants", "color": "#2c3e50"},
+        "shoes": {"type": "sneakers", "color": "#111111", "sole": "#3a3a3a"},
+        "acc": ["visor"], "visor_color": "#ffcc33",
+    },
+    "grill_master": {
+        "sex": "m", "skin": "#b07850", "skin_tint": 0.4,
+        "hair": {"style": "short", "color": "#1a1a1a"},
+        "face": {"brows": "#1a1a1a", "beard": "mustache", "beard_color": "#1a1a1a"},
+        "top": {"type": "buttonup", "color": "#f4f4f2", "sleeves": "long"},
+        "bottom": {"type": "pants", "color": "#2c3e50"},
+        "shoes": {"type": "leather", "color": "#111111", "sole": "#0a0a0a"},
+        "acc": ["chef_hat", "apron", "spatula"], "apron_color": "#dfe6e9",
+    },
+    "sauce_keeper": {
+        "sex": "m", "skin": "#d39a72",
+        "hair": {"style": "short", "color": "#2b1d14"},
+        "face": {"brows": "#2b1d14", "beard": "stubble", "beard_color": "#2b1d14"},
+        "top": {"type": "tee", "color": "#e67e22", "sleeves": "short"},
+        "bottom": {"type": "pants", "color": "#2c3e50"},
+        "shoes": {"type": "sneakers", "color": "#111111", "sole": "#3a3a3a"},
+        "acc": ["apron", "bottle"], "apron_color": "#ffffff",
+    },
+}
+
+# Minions (hero_specs.MINIONS): the office coworkers, from their chibi designs.
+MINION_LOOKS = {
+    "reply_all": {
+        "sex": "m", "skin": "#f2c09a",
+        "hair": {"style": "short", "color": "#6b4f2a"},
+        "face": {"brows": "#5a3e22", "beard": "none"},
+        "top": {"type": "buttonup", "color": "#9aa4c8", "sleeves": "short"},
+        "bottom": {"type": "pants", "color": "#4a4a58"},
+        "shoes": {"type": "leather", "color": "#222222", "sole": "#111111"},
+        "acc": ["glasses", "laptop"], "glasses_color": "#2d2d2d",
+    },
+    "fish_guy": {
+        "sex": "m", "skin": "#e0a37e",
+        "hair": {"style": "short", "color": "#3c2418"},
+        "face": {"brows": "#3c2418", "beard": "stubble", "beard_color": "#3c2418"},
+        "top": {"type": "tee", "color": "#8fd18f", "sleeves": "short"},
+        "bottom": {"type": "pants", "color": "#5d6d7e"},
+        "shoes": {"type": "sneakers", "color": "#222222", "sole": "#dcdcdc"},
+        "acc": ["fish"],
+    },
+    "loud_typer": {
+        "sex": "m", "skin": "#f2c09a",
+        "hair": {"style": "short", "color": "#c0392b"},
+        "face": {"brows": "#a93226", "beard": "none"},
+        "top": {"type": "tee", "color": "#c8a46e", "sleeves": "short"},
+        "bottom": {"type": "pants", "color": "#34495e"},
+        "shoes": {"type": "sneakers", "color": "#2b2b33", "sole": "#e6e6e6"},
+        "acc": ["headphones", "keyboard"], "phones_color": "#555555",
+    },
+    "close_talker": {
+        "sex": "m", "skin": "#d39a72",
+        "hair": {"style": "short", "color": "#2b1d14"},
+        "face": {"brows": "#2b1d14", "beard": "none"},
+        "top": {"type": "buttonup", "color": "#7f8fa6", "sleeves": "long", "tie": "#c0392b"},
+        "bottom": {"type": "pants", "color": "#4a4a58"},
+        "shoes": {"type": "leather", "color": "#222222", "sole": "#111111"},
+        "acc": ["mug"],
+    },
 }
 
 # Remixes (cycle 2+): changes on top of the boss's look.
@@ -223,6 +302,12 @@ REMIX_LOOKS = {
     "sales_guy": dict(_suit("#7f8c8d", "#2c3e50"), acc=["stirrer"]),
     "guardian": {"top": {"type": "sweater", "color": "#1e8449", "sleeves": "long", "pattern": "holiday"}},
     "ghost": {"acc": ["lanyard", "cap"], "cap": {"color": "#cfe3ff", "front": "#cfe3ff"}},
+    "copilot": {"top": {"type": "robe", "color": "#c9a227", "sleeves": "long"},  # the premium tier, in gold
+                "bottom": {"type": "robe", "color": "#c9a227"}, "hood_color": "#a8841c", "cord_color": "#5a4510",
+                "acc": ["hood", "scythe", "laptop", "floating_laptop", "cord"]},  # and a second laptop
+    "cashier": {"acc": ["paper_hat"]},
+    "grill_master": {"acc": ["paper_hat", "apron", "spatula"]},
+    "sauce_keeper": {"acc": ["paper_hat", "apron", "bottle"]},
 }
 
 
@@ -241,6 +326,8 @@ def look(model_id):
         return dict(LOOKS[model_id])
     if model_id in BOSS_LOOKS:
         return dict(BOSS_LOOKS[model_id])
+    if model_id in MINION_LOOKS:
+        return dict(MINION_LOOKS[model_id])
     if model_id.endswith("_remix"):
         boss = model_id[:-len("_remix")]
         out = dict(BOSS_LOOKS[boss])

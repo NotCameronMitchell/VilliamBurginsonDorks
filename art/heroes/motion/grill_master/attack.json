@@ -1,0 +1,11 @@
+{
+  "hero": "grill_master",
+  "anim": "attack",
+  "prompt": "A man raises a spatula overhead and smacks it down hard.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

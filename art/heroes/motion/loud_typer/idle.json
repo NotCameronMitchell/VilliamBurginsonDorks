@@ -1,0 +1,11 @@
+{
+  "hero": "loud_typer",
+  "anim": "idle",
+  "prompt": "A person bobs their head to music, tapping their fingers in the air.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

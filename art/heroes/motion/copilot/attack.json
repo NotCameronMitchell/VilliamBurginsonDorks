@@ -1,0 +1,11 @@
+{
+  "hero": "copilot",
+  "anim": "attack",
+  "prompt": "A person swings a long scythe in a wide horizontal arc with both hands.",
+  "seconds": 1.8,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 54,
+  "joints": 77,
+  "fps": 30
+}

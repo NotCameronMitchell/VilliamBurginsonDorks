@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "idle",
+  "prompt": "A bored person stands shifting their weight from foot to foot, tapping their fingers.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

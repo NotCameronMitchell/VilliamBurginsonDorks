@@ -2,9 +2,10 @@
 
 ## Detailed heroes
 
-The six heroes, their skins, their two ultimate forms and four of the bosses are realistic,
-Pokemon Scarlet/Violet-style people, built in Blender with free tools. The Copilot, the
-burger crew, the Boombox and the minions are still the chibi models below.
+The six heroes, their skins, their two ultimate forms, the bosses and the coworker minions
+are realistic, Pokemon Scarlet/Violet-style people, built in Blender with free tools. The
+Boombox and the object minions (the cans, the pouch, the tin) are still the chibi models
+below: motion capture is made for human bodies.
 
 | Step | Tool | Output |
 |---|---|---|
@@ -17,6 +18,8 @@ Each part lives in its own file:
 - **Identity:** `art/tools/hero_mh.py` holds who each hero is: MakeHuman body and face sliders,
   skin, eye color, brows, lashes, hair and hair color. These were tuned by eye against each
   person's photo. The photos stay out of the repo, in `Pictures/Villiam Burginson Dorks/`.
+  Hair is recolored from MakeHuman's stock brown texture, keeping 15% of its color. Black
+  hair (James and Sarah) sets `hair_keep` lower, or it reads as dark brown.
 - **Outfit:** `art/tools/hero_looks.py` holds what they wear: top, bottom, shoes, colors,
   prints, numbers, beard and accessories. A new skin is a new look entry.
 - **Specs:** `art/tools/hero_specs.py` holds real heights, the Kimodo motion prompts and
@@ -35,7 +38,8 @@ powershell -File art/tools/heroes.ps1 motions [--only cole]
   Then run `assemble` again.
 
 **Bosses** are built the same way: the Angry Trucker, the Mystery Sales Guy, the Guardian of
-Tunes and the Ghost of James Civelli, plus their remixes.
+Tunes, the Ghost of James Civelli, the Copilot Grim Reaper and the burger crew (the Cashier,
+the Grill Master and the Sauce Keeper), plus their remixes.
 - **Who:** made-up people in `hero_mh.BOSS_MH`. The ghost is James's old-job self, so he has
   James's face (`BOSS_FORM_MH`).
 - **Outfits:** `hero_looks.BOSS_LOOKS`, which follow the chibi designs in `characters.py`.
@@ -43,12 +47,31 @@ Tunes and the Ghost of James Civelli, plus their remixes.
 - **Motions:** heights and prompts are in `hero_specs.BOSSES` and `BOSS_MOTIONS`. A remix
   uses its boss's body and motions.
 
+**Coworker minions** (the Reply-All Guy, the Microwave Fish Guy, the Mechanical Keyboard Guy
+and the Close Talker) work the same way, from `hero_specs.MINIONS` and `MINION_MOTIONS`,
+`hero_looks.MINION_LOOKS` and `hero_mh.BOSS_MH`.
+
 ```
-powershell -File art/tools/heroes.ps1 motions --only trucker,sales_guy,guardian,ghost
+powershell -File art/tools/heroes.ps1 motions --only copilot,cashier,reply_all
 powershell -File art/tools/heroes.ps1 assemble --makehuman --bosses    # writes assets/models/bosses
+powershell -File art/tools/heroes.ps1 assemble --makehuman --minions   # writes assets/models/minions
 ```
 
-The Copilot Grim Reaper, the burger crew, the Boombox and the minions are still chibi models.
+**Props** (`accessories.py`) are built from each body's own landmarks in the rest pose and
+weighted to one bone:
+- **Held:** the scythe, the laptops, the spatula, the sauce bottle, the fish, the keyboard
+  and the mug sit in the fist. `grip()` finds the grip point, the finger and thumb
+  directions and the palm.
+- **Worn:** the Copilot's hood is lofted from rings around his head and neck. Each ring is
+  sized from how far the body reaches at that height, so nothing pokes through. The hood
+  rises to a soft point at the back, and its brow juts out past the face to keep the face
+  in shadow. The rope belt covers the seam where his robe's top meets its skirt. The chef
+  hat and the apron are made in code too. The Copilot Pro's second laptop hovers by his
+  shoulder, on the chest bone.
+- **Glow:** the Copilot's eyes and laptop screen use emissive materials
+  (`garments.glow_material`), which Godot's glow picks up.
+
+The Boombox and the object minions are still chibi models.
 
 **One-time setup:** run `art/tools/makehuman_setup.py` in Blender
 (`blender -b -P art/tools/makehuman_setup.py -- --log C:\temp\mh.log`). It installs MPFB into a
@@ -129,9 +152,9 @@ JPEG textures, so WebP is used instead.
 Every character (85 models) is built by a Python script running in Blender:
 
 - **Hero skins.** The heroes, forms and skins are the detailed models above.
-- **Bosses and remixes.** The trucker, sales guy, guardian and ghost (and their remixes) are
-  the detailed models above too.
-- **Minions.**
+- **Bosses and remixes.** Every boss and remix is a detailed model above too.
+- **Minions.** The four coworkers are detailed models. The energy drink, tallboy, nicotine
+  pouch and pouch tin are chibis, and so is the Boombox.
 
 A full rebuild skips everything that has a detailed model, unless you pass `--chibi-heroes`.
 The chibis still go in the lineup `.blend`.

@@ -134,7 +134,9 @@ def build_base(model_id, stock_clothes=None):
         hair = next((o for o in rig.children_recursive if o.type == "MESH" and d["hair"] in o.name.lower()), None)
         if hair:
             for slot in hair.material_slots:
-                colorize(slot.material, d["hair_color"], keep=0.15, name="%s_hair" % model_id)
+                # hair_keep: how much of the stock (brown) hair texture's color stays; black
+                # hair keeps very little, or it reads as dark brown.
+                colorize(slot.material, d["hair_color"], keep=d.get("hair_keep", 0.15), name="%s_hair" % model_id)
     return rig, basemesh
 
 

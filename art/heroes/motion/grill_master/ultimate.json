@@ -1,0 +1,11 @@
+{
+  "hero": "grill_master",
+  "anim": "ultimate",
+  "prompt": "A man tosses something high into the air, catches it, and strikes a pose facing forward.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "victory",
+  "prompt": "A person claps their hands and does a little happy hop.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

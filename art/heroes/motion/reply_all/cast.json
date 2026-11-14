@@ -1,0 +1,11 @@
+{
+  "hero": "reply_all",
+  "anim": "cast",
+  "prompt": "A person types quickly on an imaginary keyboard, then hits a key dramatically.",
+  "seconds": 2.0,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 60,
+  "joints": 77,
+  "fps": 30
+}

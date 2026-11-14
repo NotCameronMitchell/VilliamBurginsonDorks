@@ -1243,11 +1243,10 @@ def main():
     if skins:
         import hero_looks as L
         ids = list(L.SKINS) if skins is True or skins == "all" else skins.split(",")
-    bosses = bool(arg("--bosses")) or all(H.boss_of(i) for i in ids)  # bosses and remixes
-    if arg("--bosses") and not only:
-        ids = H.boss_ids()
+    if not only and (arg("--bosses") or arg("--minions")):
+        ids = (H.boss_ids() if arg("--bosses") else []) + (H.minion_ids() if arg("--minions") else [])
     motions_dir = arg("--motions") or os.path.join(ROOT, "art", "heroes", "motion")
-    out_dir = arg("--out") or os.path.join(ROOT, "assets", "models", "bosses" if bosses else "heroes")
+    out_dir = arg("--out")  # default: each model's own folder (heroes, bosses or minions)
     render_dir = arg("--render")
     mode = "mannequin" if arg("--mannequin") else ("test-body" if arg("--test-body") else
                                                    ("procedural" if arg("--procedural") else
@@ -1276,7 +1275,8 @@ def main():
                 render_sheet(arm, clips, os.path.join(render_dir, mid + ("" if mode == "auto" else "_" + mode) + ".png"))
             if not arg("--no-export"):
                 arm.scale = arm.scale * H.GAME_SCALE
-                path = os.path.join(out_dir, mid + ".glb")
+                folder = out_dir or os.path.join(ROOT, "assets", "models", H.folder_of(mid))
+                path = os.path.join(folder, mid + ".glb")
                 export(path)
                 log("  wrote %s" % path)
             built += 1

@@ -250,6 +250,19 @@ BOSSES = {
     "sales_guy": {"name": "The Mystery Sales Guy", "height": 1.93},
     "guardian": {"name": "The Guardian of Tunes", "height": 1.74},
     "ghost": {"name": "The Ghost of James Civelli", "height": 1.95},  # James's old-job self
+    "copilot": {"name": "The Copilot Grim Reaper", "height": 2.05},
+    "cashier": {"name": "The Cashier", "height": 1.66},  # the burger crew (the final fight)
+    "grill_master": {"name": "The Grill Master", "height": 1.84},
+    "sauce_keeper": {"name": "The Sauce Keeper", "height": 1.80},
+}
+
+# The office coworkers you fight on the way (exported to assets/models/minions). The object
+# minions (energy drink, tallboy, nicotine pouch, pouch tin) stay chibi: they aren't people.
+MINIONS = {
+    "reply_all": {"name": "Reply-All Guy", "height": 1.78},
+    "fish_guy": {"name": "Microwave Fish Guy", "height": 1.76},
+    "loud_typer": {"name": "Mechanical Keyboard Guy", "height": 1.74},
+    "close_talker": {"name": "Close Talker", "height": 1.79},
 }
 
 BOSS_MOTIONS = {
@@ -301,6 +314,105 @@ BOSS_MOTIONS = {
         "ultimate": {"prompt": "A man spreads his arms wide and throws his head back.", "seconds": 3.0,
                      "root": "free"},
     },
+    "copilot": {  # the scythe, the laptop, the pop-ups
+        # The arm pose is spelled out: Kimodo knows nothing about props, and with "holding a
+        # staff" alone it let the arm hang, which held the scythe out sideways.
+        "idle": {"prompt": "A tall person stands perfectly still and menacing, the right elbow bent and the right "
+                           "fist held in front of the chest as if gripping a tall staff upright, the left arm "
+                           "hanging at the side, slowly turning their head.", "seconds": 4.0, "loop": True,
+                 "root": "inplace"},
+        "attack": {"prompt": "A person swings a long scythe in a wide horizontal arc with both hands.",
+                   "seconds": 1.8, "root": "free"},
+        "cast": {"prompt": "A person raises their left hand and points forward menacingly.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A person plants a staff on the ground and slowly spreads their free arm wide.",
+                    "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A person lifts a long staff high over their head with both hands and slams it "
+                               "down hard.", "seconds": 3.0, "root": "free"},
+    },
+    "cashier": {
+        "idle": {"prompt": "A bored person stands shifting their weight from foot to foot, tapping their fingers.",
+                 "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A person throws something forward hard with one arm.", "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A person impatiently waves their hand, then points at someone.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A person claps their hands and does a little happy hop.", "seconds": 4.0,
+                    "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A person raises both arms and throws them forward with a big shout.",
+                     "seconds": 3.0, "root": "free"},
+    },
+    "grill_master": {
+        "idle": {"prompt": "A man stands with his feet apart, flipping a spatula in his right hand.",
+                 "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A man raises a spatula overhead and smacks it down hard.", "seconds": 1.6,
+                   "root": "free"},
+        "cast": {"prompt": "A man wipes his forehead with his arm, then points forward.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A man flexes both arms proudly.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A man tosses something high into the air, catches it, and strikes a pose facing "
+                               "forward.", "seconds": 3.0, "root": "free"},
+    },
+    "sauce_keeper": {
+        "idle": {"prompt": "A man stands hugging something to his chest, looking around suspiciously.",
+                 "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A man thrusts both hands forward as if squeezing a bottle at someone.",
+                   "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A man raises a bottle high over his head with one hand.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A man pumps his fist and nods.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A man sweeps his arms around in a big circle, then thrusts both hands forward.",
+                     "seconds": 3.0, "root": "free"},
+    },
+}
+
+MINION_MOTIONS = {
+    "reply_all": {
+        "idle": {"prompt": "A person stands holding a laptop under one arm, impatiently tapping their foot.",
+                 "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A person jabs their finger forward repeatedly while lecturing.", "seconds": 1.6,
+                   "root": "free"},
+        "cast": {"prompt": "A person types quickly on an imaginary keyboard, then hits a key dramatically.",
+                 "seconds": 2.0, "root": "free"},
+        "victory": {"prompt": "A person nods smugly with their arms crossed.", "seconds": 4.0, "loop": True,
+                    "root": "inplace"},
+        "ultimate": {"prompt": "A person throws both arms up and waves them wildly.", "seconds": 3.0,
+                     "root": "free"},
+    },
+    "fish_guy": {
+        "idle": {"prompt": "A person stands holding something in one hand, sniffing it and looking around.",
+                 "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A person swings their arm overhead like a club and smacks down.", "seconds": 1.6,
+                   "root": "free"},
+        "cast": {"prompt": "A person holds something out at arm's length toward someone.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A person raises one arm high in triumph.", "seconds": 4.0, "loop": True,
+                    "root": "inplace"},
+        "ultimate": {"prompt": "A person swings their arm in big circles, then slams it down.", "seconds": 3.0,
+                     "root": "free"},
+    },
+    "loud_typer": {
+        "idle": {"prompt": "A person bobs their head to music, tapping their fingers in the air.", "seconds": 4.0,
+                 "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A person pounds the air in front of them with both fists, very fast.",
+                   "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A person cups their hands around their mouth and yells.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A person air-drums wildly.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A person hammers the air with both fists, faster and faster, then throws their "
+                               "arms up.", "seconds": 3.0, "root": "free"},
+    },
+    "close_talker": {
+        "idle": {"prompt": "A person leans forward, gesturing with one hand while talking.", "seconds": 4.0,
+                 "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A person leans in close and points at someone's face.", "seconds": 1.6,
+                   "root": "free"},
+        "cast": {"prompt": "A person sips from a mug, then gestures while talking.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A person laughs and pats someone on the shoulder.", "seconds": 4.0, "loop": True,
+                    "root": "inplace"},
+        "ultimate": {"prompt": "A person steps forward and talks with big, wild hand gestures.", "seconds": 3.0,
+                     "root": "free"},
+    },
 }
 
 
@@ -314,10 +426,23 @@ def boss_ids():
     return list(BOSSES) + [b + "_remix" for b in BOSSES]
 
 
+def minion_ids():
+    return list(MINIONS)
+
+
+def folder_of(model_id):
+    """Where a model's .glb goes under assets/models."""
+    if boss_of(model_id):
+        return "bosses"
+    return "minions" if model_id in MINIONS else "heroes"
+
+
 def spec(model_id):
-    """The look spec for a hero, form or boss id."""
+    """The look spec for a hero, form, boss or minion id."""
     if model_id in HEROES or model_id in FORMS:
         return HEROES.get(model_id) or FORMS[model_id]
+    if model_id in MINIONS:
+        return MINIONS[model_id]
     return BOSSES[boss_of(model_id)]
 
 
@@ -329,11 +454,11 @@ def motion_owner(model_id):
 
 
 def motions(hero_id):
-    """Every animation for a hero or boss: anim -> spec, with defaults filled in."""
+    """Every animation for a hero, boss or minion: anim -> spec, with defaults filled in."""
     out = {}
     for anim in ANIMS:
         m = (HERO_MOTIONS.get(hero_id, {}).get(anim) or BOSS_MOTIONS.get(hero_id, {}).get(anim)
-             or SHARED_MOTIONS.get(anim))
+             or MINION_MOTIONS.get(hero_id, {}).get(anim) or SHARED_MOTIONS.get(anim))
         if m is None:
             continue
         m = dict(m)

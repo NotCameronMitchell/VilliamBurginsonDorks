@@ -1,0 +1,11 @@
+{
+  "hero": "copilot",
+  "anim": "walk",
+  "prompt": "A person walks forward at a relaxed, steady pace.",
+  "seconds": 6.0,
+  "seed": 11,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 180,
+  "joints": 77,
+  "fps": 30
+}

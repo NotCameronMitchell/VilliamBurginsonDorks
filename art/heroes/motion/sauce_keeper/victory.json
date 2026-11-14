@@ -1,0 +1,11 @@
+{
+  "hero": "sauce_keeper",
+  "anim": "victory",
+  "prompt": "A man pumps his fist and nods.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

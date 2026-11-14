@@ -1,0 +1,11 @@
+{
+  "hero": "reply_all",
+  "anim": "ultimate",
+  "prompt": "A person throws both arms up and waves them wildly.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

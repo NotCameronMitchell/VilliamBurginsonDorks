@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "stunned",
+  "prompt": "A dizzy person sways unsteadily in place, wobbling from side to side with their head drooping.",
+  "seconds": 4.0,
+  "seed": 13,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

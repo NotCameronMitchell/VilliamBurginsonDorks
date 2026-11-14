@@ -1,0 +1,11 @@
+{
+  "hero": "copilot",
+  "anim": "victory",
+  "prompt": "A person plants a staff on the ground and slowly spreads their free arm wide.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

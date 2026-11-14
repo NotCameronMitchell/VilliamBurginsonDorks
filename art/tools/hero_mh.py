@@ -29,7 +29,7 @@ MH = {
                     "eyebrows-trans-down": 0.15, "mouth-angles-up": 0.45, "l-eye-scale-decr": 0.15,
                     "r-eye-scale-decr": 0.15},
         "skin": "young_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow004", "eyelashes": "eyelashes01",
-        "hair": "short02", "hair_color": "#4e3020",
+        "hair": "short02", "hair_color": "#141110", "hair_keep": 0.03,  # black
     },
     "cole": {  # narrow face, high forehead, friendly smile
         "phenotype": {"gender": 1.0, "age": 0.5, "muscle": 0.5, "weight": 0.42, "height": 0.66,
@@ -65,7 +65,7 @@ MH = {
         "targets": {"head-oval": 0.4, "head-round": 0.25, "chin-prominent-decr": 0.15, "nose-scale-horiz-decr": 0.1,
                     "mouth-scale-horiz-decr": 0.1, "mouth-angles-up": 0.2},
         "skin": "young_caucasian_female", "eyes": "brownlight", "eyebrows": "eyebrow010", "eyelashes": "eyelashes02",
-        "hair": "long01", "hair_color": "#3a261b",
+        "hair": "long01", "hair_color": "#141110", "hair_keep": 0.03,  # black
     },
 }
 
@@ -108,6 +108,70 @@ BOSS_MH = {
                     "mouth-angles-up": 0.8, "mouth-lowerlip-volume-incr": 0.3, "nose-scale-horiz-decr": 0.15},
         "skin": "young_caucasian_female", "eyes": "green", "eyebrows": "eyebrow010", "eyelashes": "eyelashes02",
         "hair": "ponytail01", "hair_color": "#7b4a2a",
+    },
+    "copilot": {  # tall and gaunt; the face is all but hidden (hero_looks: dark skin, glowing eyes)
+        "phenotype": {"gender": 1.0, "age": 0.6, "muscle": 0.35, "weight": 0.2, "height": 1.0,
+                      "proportions": 0.9},
+        "targets": {"head-oval": 0.8, "head-scale-vert-incr": 0.3, "l-cheek-volume-decr": 0.6,
+                    "r-cheek-volume-decr": 0.6, "chin-prominent-incr": 0.4, "eyebrows-trans-down": 0.4},
+        "skin": "young_caucasian_male", "eyes": "blue", "eyebrows": "eyebrow001", "eyelashes": "eyelashes01",
+        "hair": "", "hair_color": "#111111",
+    },
+    "cashier": {  # cheerful, a little tired of everyone
+        "phenotype": {"gender": 0.0, "age": 0.45, "muscle": 0.45, "weight": 0.48, "height": 0.4,
+                      "proportions": 0.6, "cupsize": 0.45, "firmness": 0.55,
+                      "race": {"asian": 0.0, "caucasian": 0.55, "african": 0.45}},
+        "targets": {"head-round": 0.4, "mouth-angles-up": 0.5, "l-eye-scale-incr": 0.2, "r-eye-scale-incr": 0.2,
+                    "nose-scale-horiz-incr": 0.15},
+        "skin": "young_caucasian_female", "eyes": "brown", "eyebrows": "eyebrow009", "eyelashes": "eyelashes02",
+        "hair": "ponytail01", "hair_color": "#2b1d14",
+    },
+    "grill_master": {  # big, mustached, proud of his grill
+        "phenotype": {"gender": 1.0, "age": 0.62, "muscle": 0.6, "weight": 0.82, "height": 0.75,
+                      "proportions": 0.5, "race": {"asian": 0.0, "caucasian": 0.6, "african": 0.4}},
+        "targets": {"head-square": 0.6, "head-fat-incr": 0.5, "neck-scale-horiz-incr": 0.6,
+                    "nose-volume-incr": 0.4, "mouth-angles-up": 0.5, "chin-width-incr": 0.3},
+        "skin": "middleage_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow004", "eyelashes": "eyelashes01",
+        "hair": "short01", "hair_color": "#1a1a1a",
+    },
+    "sauce_keeper": {  # guards the Village Sauce with his life
+        "phenotype": {"gender": 1.0, "age": 0.5, "muscle": 0.55, "weight": 0.55, "height": 0.65,
+                      "proportions": 0.6},
+        "targets": {"head-oval": 0.5, "eyebrows-trans-down": 0.45, "l-eye-scale-decr": 0.15,
+                    "r-eye-scale-decr": 0.15, "mouth-angles-down": 0.3, "nose-scale-vert-incr": 0.2},
+        "skin": "young_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow002", "eyelashes": "eyelashes01",
+        "hair": "short02", "hair_color": "#2b1d14",
+    },
+    # Minions: the office coworkers.
+    "reply_all": {  # glasses, a laptop, opinions
+        "phenotype": {"gender": 1.0, "age": 0.55, "muscle": 0.4, "weight": 0.5, "height": 0.6,
+                      "proportions": 0.6},
+        "targets": {"head-oval": 0.6, "forehead-scale-vert-incr": 0.4, "nose-scale-vert-incr": 0.25,
+                    "mouth-angles-down": 0.2, "eyebrows-trans-up": 0.3},
+        "skin": "young_caucasian_male", "eyes": "bluegreen", "eyebrows": "eyebrow002", "eyelashes": "eyelashes01",
+        "hair": "short02", "hair_color": "#6b4f2a",
+    },
+    "fish_guy": {  # microwaves fish at lunch, every day
+        "phenotype": {"gender": 1.0, "age": 0.58, "muscle": 0.45, "weight": 0.72, "height": 0.55,
+                      "proportions": 0.5},
+        "targets": {"head-round": 0.6, "head-fat-incr": 0.4, "nose-volume-incr": 0.3, "mouth-angles-up": 0.6},
+        "skin": "middleage_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow003", "eyelashes": "eyelashes01",
+        "hair": "short01", "hair_color": "#3c2418",
+    },
+    "loud_typer": {  # the clackiest keyboard in the building
+        "phenotype": {"gender": 1.0, "age": 0.42, "muscle": 0.45, "weight": 0.45, "height": 0.5,
+                      "proportions": 0.6},
+        "targets": {"head-oval": 0.5, "mouth-angles-up": 0.3, "l-eye-scale-incr": 0.15, "r-eye-scale-incr": 0.15},
+        "skin": "young_caucasian_male", "eyes": "green", "eyebrows": "eyebrow001", "eyelashes": "eyelashes01",
+        "hair": "short03", "hair_color": "#c0392b",
+    },
+    "close_talker": {  # leans in way too close
+        "phenotype": {"gender": 1.0, "age": 0.5, "muscle": 0.5, "weight": 0.55, "height": 0.62,
+                      "proportions": 0.6, "race": {"asian": 0.0, "caucasian": 0.7, "african": 0.3}},
+        "targets": {"head-oval": 0.4, "mouth-scale-horiz-incr": 0.35, "mouth-angles-up": 0.7,
+                    "eyebrows-trans-up": 0.35, "nose-scale-horiz-incr": 0.2},
+        "skin": "young_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow004", "eyelashes": "eyelashes01",
+        "hair": "short04", "hair_color": "#2b1d14",
     },
 }
 BOSS_FORM_MH = {

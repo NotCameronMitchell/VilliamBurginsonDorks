@@ -35,7 +35,7 @@ HEROES = {
         "acc": ["watch", ("stripes", "#ff3b4a", "#14b05a")],
     },
     "james": {  # Brown matching set and the mustache
-        "skin": SKIN, "hair": "short", "hair_color": "#3c2418", "mustache": True,
+        "skin": SKIN, "hair": "short", "hair_color": "#141110", "mustache": True,
         "top": "#6a2e26", "bottom": "#552520", "shoes": "#ffffff", "width": 1.12,
         "acc": [("number", "#ffd23f")],
     },
@@ -54,8 +54,8 @@ HEROES = {
         "top": "#141018", "bottom": "#141018", "dress": "#141018", "shoes": "#141018", "legs": "#e8b48e",
         "blush": True, "acc": [],
     },
-    "sarah": {  # Short, dark hair, glasses, sweater, black leggings
-        "skin": "#f0c4a0", "hair": "bob", "hair_color": "#2e1f17", "scale": 0.92,
+    "sarah": {  # Black hair, glasses, sweater, black leggings
+        "skin": "#f0c4a0", "hair": "bob", "hair_color": "#141110", "scale": 0.92,
         "top": "#c76b8f", "bottom": "#1a1a1f", "shoes": "#2b2b33",
         "blush": True, "acc": ["glasses"],
     },

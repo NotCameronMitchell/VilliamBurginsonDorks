@@ -1,0 +1,11 @@
+{
+  "hero": "loud_typer",
+  "anim": "attack",
+  "prompt": "A person pounds the air in front of them with both fists, very fast.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

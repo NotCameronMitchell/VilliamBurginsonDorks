@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "run",
+  "prompt": "A person sprints forward at full speed, charging into battle.",
+  "seconds": 4.0,
+  "seed": 15,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

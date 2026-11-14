@@ -1,0 +1,11 @@
+{
+  "hero": "cashier",
+  "anim": "attack",
+  "prompt": "A person throws something forward hard with one arm.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

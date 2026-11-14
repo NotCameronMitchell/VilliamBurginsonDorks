@@ -1,0 +1,11 @@
+{
+  "hero": "close_talker",
+  "anim": "victory",
+  "prompt": "A person laughs and pats someone on the shoulder.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}
