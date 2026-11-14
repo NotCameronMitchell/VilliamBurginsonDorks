@@ -66,27 +66,14 @@ func _rebuild_heroes() -> void:
 		var a := TAU * i / ids.size()
 		spot.position = Vector3(sin(a) * 2.4, 0.1, cos(a) * 2.4)
 		_pivot.add_child(spot)
-		var s := 0.8 if id == "sam" else (0.92 if id == "sarah" else 1.0)
 		var o := Outfits.outfit_of(id, Game.meta.outfits)
-		var body := MeshInstance3D.new()
-		var cap := CapsuleMesh.new()
-		cap.radius = 0.3 * s
-		cap.height = 0.95 * s
-		body.mesh = cap
-		body.position.y = 0.5 * s
-		body.material_override = _mat(UnitView.skin_tint(Color(HeroData.HEROES[id].color), Outfits.model_of(o)))
-		spot.add_child(body)
-		var head := MeshInstance3D.new()
-		var sph := SphereMesh.new()
-		sph.radius = 0.24 * s
-		sph.height = 0.48 * s
-		head.mesh = sph
-		head.position.y = 1.17 * s
-		head.material_override = _mat(Color("#f1c7a5"))
-		spot.add_child(head)
+		var v := UnitView.new()
+		spot.add_child(v)
+		v.setup_preview(id, Outfits.model_of(o))
+		v.rotation.y = a + PI # face outward from the middle of the platform
 		var tag := Label3D.new()
 		tag.text = HeroData.HEROES[id].name
-		tag.position.y = 1.7 * s
+		tag.position.y = v.height + 0.25
 		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		tag.font_size = 44
 		tag.outline_size = 12

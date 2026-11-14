@@ -31,6 +31,7 @@ func _init() -> void:
 	test_events()
 	test_achievements_and_outfits()
 	test_saves()
+	test_models()
 	if OS.get_environment("FULL_RUN") == "1":
 		full_run_report()
 	if OS.get_environment("BALANCE") == "1":
@@ -695,6 +696,51 @@ func test_saves() -> void:
 	check(SaveGame.load_run(dir).is_empty(), "save: clearing the run works")
 	for f in [SaveGame.META, SaveGame.BOARD]:
 		DirAccess.remove_absolute(dir + f)
+
+
+const ANIMS := ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate"]
+
+
+## Every exported model loads, has a skeleton and all the animations the game plays,
+## and every hero skin / boss / minion has its model.
+func test_models() -> void:
+	var count := 0
+	for folder in ["heroes", "bosses", "minions"]:
+		var dir := "res://assets/models/%s/" % folder
+		for f in DirAccess.get_files_at(dir):
+			if not f.ends_with(".glb"):
+				continue
+			count += 1
+			var scene: PackedScene = load(dir + f)
+			if scene == null:
+				check(false, "model %s loads" % f)
+				continue
+			var root := scene.instantiate()
+			var players := root.find_children("*", "AnimationPlayer", true, false)
+			var skel := root.find_children("*", "Skeleton3D", true, false)
+			var ok: bool = not players.is_empty() and not skel.is_empty()
+			if ok:
+				var ap: AnimationPlayer = players[0]
+				for a in ANIMS:
+					if not ap.has_animation(a):
+						ok = false
+						check(false, "model %s has animation %s (has %s)" % [f, a, str(ap.get_animation_list())])
+						break
+			check(ok, "model %s has a skeleton and animations" % f)
+			root.free()
+	check(count >= 85, "all models exported (%d)" % count)
+	var missing := []
+	for o in Outfits.all():
+		var name: String = o.get("model", o.get("palette", o.hero))
+		if not ResourceLoader.exists("res://assets/models/heroes/%s.glb" % name):
+			missing.append(name)
+	for id in EnemyData.ENEMIES:
+		var folder := "bosses" if EnemyData.ENEMIES[id].get("boss", false) or id == "boombox" else "minions"
+		if not ResourceLoader.exists("res://assets/models/%s/%s.glb" % [folder, id]):
+			missing.append(id)
+		if EnemyData.ENEMIES[id].has("remix_name") and not ResourceLoader.exists("res://assets/models/bosses/%s_remix.glb" % id):
+			missing.append(id + "_remix")
+	check(missing.is_empty(), "every skin, boss, remix and minion has a model (missing: %s)" % ", ".join(missing))
 
 
 static func upgraded_meta(level: int) -> Dictionary:

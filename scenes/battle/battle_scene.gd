@@ -8,8 +8,9 @@ enum State { STORY, PLAYING, INPUT, TARGETING, POPUP, OVER }
 
 ## Behind and above the heroes, looking across at the enemies; framed so the units
 ## sit above the bottom HUD strip.
-const CAM_POS := Vector3(-1.4, 6.6, 11.2)
-const CAM_LOOK := Vector3(0.2, -1.6, -0.9)
+const CAM_POS := Vector3(-1.4, 6.0, 10.6)
+const CAM_LOOK := Vector3(0.1, -1.3, -0.4)
+const CAM_FOV := 38.0
 const DMG_COLORS := {
 	"hit": Color.WHITE, "poison": Color("#7cff4f"), "bleed": Color("#ff4f6d"), "burn": Color("#ff9a1f"),
 	"reflect": Color("#ff7ae0"), "boom": Color("#ffb627"),
@@ -88,7 +89,7 @@ func _build_world(arena_id: String) -> void:
 	add_child(arena)
 	arena.build(arena_id)
 	cam = Camera3D.new()
-	cam.fov = 42
+	cam.fov = CAM_FOV
 	add_child(cam)
 	cam.position = CAM_POS
 	cam.look_at(CAM_LOOK)
@@ -390,6 +391,7 @@ func _play(ev: Dictionary) -> float:
 			var u := b.unit(ev.uid)
 			hud.message("%s used [b]%s[/b]!" % [u.name, ev.name])
 			if ev.ult and v:
+				v.play("ultimate")
 				_punch(0.8)
 			return 0.6 if ev.ult else 0.42
 		"death":
@@ -487,6 +489,9 @@ func _refresh_chips(uid: int) -> void:
 	if u.key == "sales_guy" and b.mog > 0:
 		chips.push_front({"short": "AURA %d" % b.mog, "color": "#e0d0ff", "good": true})
 	p.set_statuses(chips)
+	var v: UnitView = views.get(uid)
+	if v:
+		v.set_stunned(b.has(u, "stun"))
 
 
 # ------------------------------------------------------------------ effects
@@ -584,8 +589,8 @@ func _drive_by(color: Color) -> void:
 
 func _punch(strength := 1.0) -> void:
 	var tw := create_tween()
-	tw.tween_property(cam, "fov", 42 - 4 * strength, 0.06)
-	tw.tween_property(cam, "fov", 42.0, 0.25)
+	tw.tween_property(cam, "fov", CAM_FOV - 4 * strength, 0.06)
+	tw.tween_property(cam, "fov", CAM_FOV, 0.25)
 
 
 func _update_camera(delta: float) -> void:
@@ -604,6 +609,10 @@ func _on_over() -> void:
 	hud.set_round("")
 	var win := b.outcome == "win"
 	hud.banner("VICTORY!" if win else "DEFEATED", "", UITheme.ACCENT if win else UITheme.HP_RED)
+	for id in views:
+		var won_side := "hero" if win else "enemy"
+		if views[id].side == won_side:
+			views[id].celebrate()
 	await get_tree().create_timer(1.4).timeout
 	if not Game.test_fight.is_empty():
 		await overlay.notice("Victory!" if win else "Defeated", ["Test fight over. %d rounds." % b.round])

@@ -1,5 +1,47 @@
 # Art pipeline: Blender → Godot
 
+## Generated models (what's in the game now)
+
+Every character (85 models) is built by a Python script running in Blender:
+
+- **Heroes:** the 6 heroes, their 2 ultimate forms and every skin.
+- **Bosses and remixes.**
+- **Minions.**
+
+Each model is a low-poly chibi on a shared 8-bone skeleton, with all the animations
+the game plays.
+
+```
+powershell -File art/tools/run_blender.ps1                      # rebuild everything
+powershell -File art/tools/run_blender.ps1 --only cole,trucker  # just these
+powershell -File art/tools/run_blender.ps1 --only sam --no-export --render C:\temp\previews
+```
+
+`run_blender.ps1` finds Blender on PATH, in `$env:BLENDER`, or the Microsoft Store
+install. The script itself is `art/tools/make_models.py`, and you can also run it with
+`blender --factory-startup -b -P art/tools/make_models.py -- <options>`.
+
+- **`art/tools/characters.py`:** every character's look as data (colors, hair,
+  proportions, accessories, skins, remixes). Change a color or swap a hat here, then
+  rebuild.
+- **`art/tools/chibi.py`:** the builder: body parts, accessories, skeleton and
+  animations.
+- **`art/characters.blend`:** the base heroes, bosses and minions in a lineup, with
+  every animation as an NLA track. Open it to look around, or to start a hand-made
+  version of a character.
+
+**Replacing a generated model with a hand-made one:**
+1. Model and rig it in Blender (see below).
+2. Export it to the same path, e.g. `assets/models/heroes/cole.glb`.
+3. Add its id to `HAND_MADE` in `characters.py`, so the generator never overwrites it.
+
+The game only needs the animation names below, and it turns glTF models to face the
+right way on its own.
+
+**Skeleton (generated models):** `root → hips → torso → head`, `torso → arm.L / arm.R`,
+`hips → leg.L / leg.R`. Hand-made models can use any skeleton, as long as the action
+names match.
+
 ## Folders
 
 - `art/`: Blender source files (`.blend`). Godot ignores this folder (`art/.gdignore`).

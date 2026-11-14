@@ -102,31 +102,95 @@ func center_pos() -> Vector3:
 	return global_position + Vector3(0, height * 0.55, 0)
 
 
+## A hero shown outside battle (title screen, Suit Up): no unit, just a model.
+func setup_preview(hero_id: String, model_key: String) -> void:
+	key = hero_id
+	side = "hero"
+	color = Color(HeroData.HEROES[hero_id].color)
+	set_model(model_key)
+
+
 # ------------------------------------------------------------------ models
+const LOOPING := ["idle", "walk", "stunned", "victory"]
+const ONE_SHOTS := ["attack", "cast", "hit", "ultimate"]
+
+var _meshes: Array[MeshInstance3D] = []
+var _flash_mat: StandardMaterial3D
+
+
+## Model keys: "cole", "mason_suit", "trucker_remix", or "mason~mason_home" for a
+## recolor. Tries the exact model, then the recolor's own file, then the base
+## character, and finally a placeholder shape.
 func set_model(model_key: String) -> void:
 	if _root:
 		_root.queue_free()
 	_mats.clear()
+	_meshes.clear()
 	_anim = null
-	var base := model_key.split("~")[0]
-	for folder in ["heroes", "bosses", "minions"]:
-		var path := "res://assets/models/%s/%s.glb" % [folder, base]
-		if ResourceLoader.exists(path):
-			_root = (load(path) as PackedScene).instantiate()
-			add_child(_root)
-			var players := _root.find_children("*", "AnimationPlayer", true, false)
-			if not players.is_empty():
-				_anim = players[0]
-			play("idle")
-			height = 1.4
-			return
+	var parts := model_key.split("~")
+	var candidates: Array = [parts[-1], parts[0]] if parts.size() > 1 else [model_key]
+	if not candidates.has(key):
+		candidates.append(key)
+	for name in candidates:
+		for folder in ["heroes", "bosses", "minions"]:
+			var path := "res://assets/models/%s/%s.glb" % [folder, name]
+			if ResourceLoader.exists(path):
+				_load_glb(path)
+				return
 	_root = _placeholder(model_key)
 	add_child(_root)
 
 
+func _load_glb(path: String) -> void:
+	_root = (load(path) as PackedScene).instantiate()
+	_root.rotation.y = PI # glTF faces +Z; units face -Z (look_at)
+	add_child(_root)
+	for mi in _root.find_children("*", "MeshInstance3D", true, false):
+		_meshes.append(mi)
+	var players := _root.find_children("*", "AnimationPlayer", true, false)
+	if not players.is_empty():
+		_anim = players[0]
+		for n in LOOPING:
+			if _anim.has_animation(n):
+				_anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+		_anim.animation_finished.connect(func(n):
+			if alive and n in ONE_SHOTS:
+				play("idle"))
+	play("idle")
+	_anim_seek_random()
+	height = _measure_height()
+
+
+## Start idle at a random point so a lineup doesn't breathe in sync.
+func _anim_seek_random() -> void:
+	if _anim and _anim.current_animation != "":
+		_anim.seek(randf() * _anim.current_animation_length, true)
+
+
+func _measure_height() -> float:
+	var top := 0.0
+	for mi in _meshes:
+		var a: AABB = mi.global_transform * mi.get_aabb()
+		top = maxf(top, a.end.y - global_position.y)
+	return top if top > 0.2 else 1.4
+
+
 func play(anim: String) -> void:
-	if _anim and _anim.has_animation(anim):
-		_anim.play(anim)
+	if _anim == null or not _anim.has_animation(anim):
+		return
+	# An ultimate isn't cut short by the cast/attack that follows it.
+	if _anim.is_playing() and _anim.current_animation == "ultimate" and anim in ["cast", "attack"]:
+		return
+	_anim.play(anim, 0.12)
+
+
+func set_stunned(on: bool) -> void:
+	if _anim == null or not alive:
+		return
+	if on and _anim.current_animation != "stunned":
+		play("stunned")
+	elif not on and _anim.current_animation == "stunned":
+		play("idle")
 
 
 func _mat(c: Color, ghost := false) -> StandardMaterial3D:
@@ -328,6 +392,21 @@ func hit_flash(crit := false) -> void:
 		tw.tween_callback(func():
 			m.emission = orig * 0.4 if _ghostly else Color.BLACK
 			m.emission_enabled = _ghostly)
+	# Real models: a white overlay that fades out.
+	if not _meshes.is_empty():
+		if _flash_mat == null:
+			_flash_mat = StandardMaterial3D.new()
+			_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			_flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flash_mat.albedo_color = Color(1, 1, 1, 0.85)
+		for mi in _meshes:
+			mi.material_overlay = _flash_mat
+		var tf := create_tween()
+		tf.tween_property(_flash_mat, "albedo_color:a", 0.0, 0.18)
+		tf.tween_callback(func():
+			for mi in _meshes:
+				if is_instance_valid(mi):
+					mi.material_overlay = null)
 	var tw2 := create_tween()
 	var off := Vector3(0.12 if crit else 0.07, 0, 0)
 	tw2.tween_property(self, "position", base_pos + off, 0.04)
@@ -341,7 +420,9 @@ func faint() -> void:
 	for m in _mats:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	var tw := create_tween().set_parallel()
-	tw.tween_property(self, "position:y", base_pos.y - 0.6, 0.6).set_ease(Tween.EASE_IN)
+	# Real models play their fall first, then sink out of sight.
+	var delay := 0.8 if _anim else 0.0
+	tw.tween_property(self, "position:y", base_pos.y - 0.9, 0.6).set_ease(Tween.EASE_IN).set_delay(delay)
 	for m in _mats:
 		tw.tween_property(m, "albedo_color:a", 0.0, 0.6)
 	tw.chain().tween_callback(func(): visible = false)
@@ -353,7 +434,13 @@ func revive() -> void:
 	position = base_pos
 	for m in _mats:
 		m.albedo_color.a = 0.55 if _ghostly else 1.0
+	play("idle")
 	hop()
+
+
+func celebrate() -> void:
+	if alive:
+		play("victory")
 
 
 func set_away(away: bool) -> void:

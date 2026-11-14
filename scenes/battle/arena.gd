@@ -5,13 +5,13 @@ extends Node3D
 ## (assets/models/arenas/<id>.glb replaces the props when present).
 
 const HERO_CENTER := Vector3(-2.6, 0, 2.4)
-const ENEMY_CENTER := Vector3(2.4, 0, -0.9)
+const ENEMY_CENTER := Vector3(2.3, 0, -0.3)
 
 ## Hero spots: front row first (closer to the enemies), then back row. Spread in x
 ## so nobody hides behind anyone from the camera's angle.
 const HERO_SPOTS := [Vector3(-1.4, 0, 1.6), Vector3(-3.3, 0, 1.4), Vector3(-2.2, 0, 3.2), Vector3(-4.1, 0, 3.0)]
 ## Enemy spots: the middle first (where a solo boss stands), then around it.
-const ENEMY_SPOTS := [Vector3(2.4, 0, -0.9), Vector3(1.0, 0, -0.3), Vector3(3.8, 0, -1.4), Vector3(1.7, 0, -2.1), Vector3(3.3, 0, 0.3)]
+const ENEMY_SPOTS := [Vector3(2.3, 0, -0.3), Vector3(0.9, 0, 0.3), Vector3(3.7, 0, -0.8), Vector3(1.6, 0, -1.5), Vector3(3.2, 0, 0.9)]
 
 const LOOKS := {
 	"office": {"sky": "#bfe3ff", "ground": "#7d8fa6", "label": "The Office"},
