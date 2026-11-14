@@ -7,6 +7,15 @@ turn-based party battler with a Pokemon-style 3D look.
 - **Engine:** Godot 4.7
 - **Models:** Blender, exported as glTF
 
+## Play it
+
+- **In your browser:** https://notcameronmitchell.github.io/VilliamBurginsonDorks/ (about
+  130 MB to load; best on a PC). It's a lighter build: it leaves out the alternate skins,
+  so heroes wear their usual outfits.
+- **On Windows:** download the latest zip from
+  [Releases](https://github.com/NotCameronMitchell/VilliamBurginsonDorks/releases/latest),
+  unzip it and run `VilliamBurginsonDorks.exe`.
+
 ## Getting started
 
 1. Install [Godot 4.7](https://godotengine.org/download) and [Blender](https://www.blender.org/download/).
@@ -104,6 +113,22 @@ For example:
 ```
 godot --path . -- --fight=copilot --party=sam,sarah,cole,cam
 ```
+
+## Publishing
+
+- **Windows:** export the "Windows Desktop" preset, zip the `.exe` and `.pck`, and attach
+  the zip to a GitHub release (`gh release create`).
+- **Browser:** `powershell -File art/web/publish_web.ps1 -Upload` exports the "Web" preset
+  (it adds it if missing: no skins, single-threaded, so it works on GitHub Pages) and
+  splits the game data into pieces of 40 MB or less. `art/web/loader.js` reassembles them
+  in the browser. Then it uploads them to a release and runs the "Web version" workflow
+  (`.github/workflows/web.yml`), which puts them on GitHub Pages. It needs Godot's web
+  export templates in `~/.vbd/godot_templates/4.7.2.stable` and a signed-in GitHub CLI.
+- **The browser renderer:** web builds draw with Godot's Compatibility renderer, which
+  shows bright things brighter, so `Arena.light_scale()` turns the lights and glow down
+  a little there.
+- **Big uploads:** uploads over about 60 MB in one piece can fail from a PC whose
+  antivirus scans HTTPS ("tls: bad record MAC"). Retry, or pause its web protection.
 
 ## Tests and balance
 

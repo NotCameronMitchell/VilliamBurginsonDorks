@@ -43,9 +43,34 @@ const LOOKS := {
 var id := "office"
 
 
+## The browser build draws with the Compatibility renderer, which shows bright things
+## brighter (glowing windows and screens wash out to white), so lights are turned down a
+## little there: this is their scale (1 on PC and phone builds).
+static func light_scale() -> float:
+	return 0.8 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 1.0
+
+
+## Turns down the glow of a model's emissive materials (per copy, so a loaded model's shared
+## materials stay as they are) where the renderer washes it out.
+static func dim_glow(root: Node) -> void:
+	if light_scale() >= 1.0:
+		return
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = mi.mesh
+		if mesh == null:
+			continue
+		for i in mesh.get_surface_count():
+			var m := mesh.surface_get_material(i) as BaseMaterial3D
+			if m and m.emission_enabled:
+				var d := m.duplicate() as BaseMaterial3D
+				d.emission_energy_multiplier *= 0.45
+				mi.set_surface_override_material(i, d)
+
+
 func build(arena_id: String) -> void:
 	id = arena_id if LOOKS.has(arena_id) else "office"
 	var look: Dictionary = LOOKS[id]
+	var k := light_scale()
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	# A sky with a gradient and a sun (through the windows, or overhead outside) instead of
@@ -64,7 +89,7 @@ func build(arena_id: String) -> void:
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(look.ambient[0])
-	e.ambient_light_energy = look.ambient[1]
+	e.ambient_light_energy = look.ambient[1] * k
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.fog_enabled = true
 	e.fog_light_color = Color(look.sky)
@@ -84,7 +109,7 @@ func build(arena_id: String) -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.light_color = Color(look.sun[0])
-	sun.light_energy = look.sun[1]
+	sun.light_energy = look.sun[1] * k
 	sun.rotation_degrees = Vector3(look.sun[2], look.sun[3], 0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0  # crisper shadows on the stage
@@ -93,7 +118,7 @@ func build(arena_id: String) -> void:
 	# so they stand out from the background.
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(look.get("rim", "#d6e4ff"))
-	rim.light_energy = 0.55
+	rim.light_energy = 0.55 * k
 	rim.rotation_degrees = Vector3(-22, 170, 0)
 	rim.shadow_enabled = false
 	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY  # no second sun in the sky
@@ -104,7 +129,7 @@ func build(arena_id: String) -> void:
 		var o := OmniLight3D.new()
 		o.position = Vector3(l[0], l[1], l[2])
 		o.light_color = Color(l[3])
-		o.light_energy = l[4]
+		o.light_energy = l[4] * k
 		o.omni_range = l[5]
 		o.omni_attenuation = 1.4
 		o.shadow_enabled = false
@@ -123,7 +148,9 @@ func build(arena_id: String) -> void:
 
 	var glb := "res://assets/models/arenas/%s.glb" % id
 	if ResourceLoader.exists(glb):
-		add_child((load(glb) as PackedScene).instantiate())
+		var model := (load(glb) as PackedScene).instantiate()
+		add_child(model)
+		dim_glow(model)
 	else:
 		_props()
 

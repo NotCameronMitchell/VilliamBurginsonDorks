@@ -1,0 +1,40 @@
+# Puts the browser version on GitHub Pages: https://notcameronmitchell.github.io/VilliamBurginsonDorks/
+# The files are built on a PC by art/web/publish_web.ps1 and uploaded to a release (the
+# game data in pieces of 40 MB or less), which this copies to the site. publish_web.ps1 -Upload
+# starts it; it can also be run by hand from the Actions tab.
+name: Web version
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release that holds the web build's files
+        default: web-8
+        required: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Download the web build from its release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --dir site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

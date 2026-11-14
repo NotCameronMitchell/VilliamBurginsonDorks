@@ -54,7 +54,9 @@ var _visual := true ## false while building collision only (the model shows the 
 func build() -> void:
 	_environment()
 	if ResourceLoader.exists(MODEL):
-		add_child((load(MODEL) as PackedScene).instantiate())
+		var model := (load(MODEL) as PackedScene).instantiate()
+		add_child(model)
+		Arena.dim_glow(model)  # softer screens and lamps in the browser build
 		_visual = false
 	else:
 		_floors()
@@ -175,8 +177,9 @@ func _environment() -> void:
 	e.sky = sky
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	var k := Arena.light_scale()  # dimmer in the browser build (see Arena.light_scale)
 	e.ambient_light_color = Color("#f2f4ff")
-	e.ambient_light_energy = 0.42
+	e.ambient_light_energy = 0.42 * k
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.glow_enabled = true  # screens and lamps glow a little
 	e.glow_intensity = 0.5
@@ -189,14 +192,14 @@ func _environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58, -30, 0)
 	sun.light_color = Color("#fff4e6")
-	sun.light_energy = 0.95
+	sun.light_energy = 0.95 * k
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 45.0
 	add_child(sun)
 	var rim := DirectionalLight3D.new()  # a cool back light, so the party stands out
 	rim.rotation_degrees = Vector3(-25, 150, 0)
 	rim.light_color = Color("#d6e4ff")
-	rim.light_energy = 0.4
+	rim.light_energy = 0.4 * k
 	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add_child(rim)
 	var grass := MeshInstance3D.new()
