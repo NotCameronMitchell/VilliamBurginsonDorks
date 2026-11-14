@@ -69,7 +69,8 @@ or `assets/models/bosses/angry_trucker.glb`.
 ## Model checklist
 
 **Heroes:** Mason (plus cats Bruno and Murphy), James (plus a buff form), Cole (plus the
-UW form with hair), Cam
+UW form with hair), Cam, Sam (the shortest model: about 0.9× hero height, plus the
+booster seat), Sarah (plus knives and the Subaru for her ultimate)
 
 **Bosses:** Angry Trucker (plus the semi truck prop), Mystery Sales Guy (coffee stirrer!),
 Copilot Grim Reaper (plus laptop and scythe), Guardian of Tunes (plus the Boombox),

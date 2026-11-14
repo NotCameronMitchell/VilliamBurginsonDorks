@@ -69,6 +69,120 @@ the camera punches in on crits, and ultimates get a full-screen cut-in banner
 Achievements list and Settings. Rounded panels, chunky outlines and bright colors:
 a modern take on the Pokemon menu style.
 
+## 3b. New heroes
+
+The roster is now 6 heroes, and you pick 4 per run. All 6 are playable from the start.
+Stats are on the same scale as the originals:
+
+| Hero | HP | ATK | DEF | Crit | Dodge |
+|---|---|---|---|---|---|
+| James | 150 | 12 | 12% | 5% | 0% |
+| Cole | 110 | 14 | 3% | 12% | 10% |
+| Mason | 95 | 11 | 0% | 8% | 5% |
+| Cam | 90 | 11 | 0% | 6% | 5% |
+
+**Both new heroes use a resource instead of (most) cooldowns.** It shows as a second
+bar under their HP: blue for Sam's MP, yellow for Sarah's Energy. In the tables below,
+"r" is the ability's rank (1-5).
+
+### Sam (Wizard, back row)
+
+*Extremely short Italian woman with long dark hair and a flowing black dress.*
+*"4'8 is not that short." / "I hate Mason."*
+
+| HP | ATK | DEF | Crit | Dodge |
+|---|---|---|---|---|
+| 75 | 14 | 0% | 8% | 5% |
+
+She's the glass cannon: the lowest HP and the highest ATK in the game.
+
+**Mana instead of cooldowns.** Sam has 100 max MP. She starts each fight with 40 and
+regenerates MP every turn (how much depends on her weapon). Her abilities have **no
+cooldowns**, so she can cast the same one every turn as long as she has the MP.
+Ranking an ability up raises its power and lowers its cost by 2 per rank.
+
+| Ability | MP | Effect |
+|---|---|---|
+| **Ignore Emails** | 35 | A shield worth 25% of her max HP, and she reflects 20% of the damage aimed at her, for 2 turns. *+5% shield and +5% reflect per rank.* |
+| **Rage Bait** | 30 | A fireball at one enemy: 220% ATK, and the target is Weakened 20% for a turn. **If Mason is in the party: +25% crit chance**, and sometimes she says "I hate Mason." *+15% damage per rank.* |
+| **Energy Drinks Are Bad For You** | 25 | Scolds every enemy: 60% ATK to all, and they're **Exposed** (can't dodge) for 2 turns. Deals double damage to Energy Drink and Tallboy minions. *+10% damage per rank. At r3+, Exposed enemies also take 10% more damage.* |
+| **Refrigerated Burger Bomb** | 40 | Takes a bite of a cold burger (poisons herself for 4% max HP a turn, 2 turns), then throws it: 100% ATK to all enemies, plus Poison at 40% ATK a turn for 3 turns. *+15% damage per rank. At r5 the burger's fine, so no self-poison.* |
+| **Passive, Desk Treadmill** | - | Heals 5% max HP every turn. Healing past full HP turns into a shield, up to 10% max HP. *+1% healing per rank.* |
+| **Ultimate, Unexpected Out of Pocket Message** | - | Says something so heinous it deals 280% ATK to every enemy and stuns them for 2 turns. Uses the normal ultimate timer (ready on turn 4, then every 5). *+20% damage per rank.* Boss stun diminishing returns still apply. |
+
+**Weapons:**
+
+| Weapon | Cost | Basic attack | Bonus |
+|---|---|---|---|
+| **Booster Seat** (default) | - | 120% ATK, one enemy | +15 MP per turn. She needs it because she's short. |
+| **TruckSmarter LOR** | 20 PTO | 100% ATK | +20 MP per turn, abilities deal +15%. She escaped TruckSmarter, but kept the power. |
+| **Lampedusa Flag** | 28 PTO | 90% ATK | +22 MP per turn, abilities deal +30%, and every ability has a 30% chance to Burn (30% ATK a turn). The flag of home. |
+
+**Why it balances:**
+- About 15 MP a turn means a big spell roughly every other turn. Basic attacks with
+  the Booster Seat fill the gaps.
+- Spamming Rage Bait (about 31 damage) is strong but drains her MP in 2-3 turns.
+- Her shield, the treadmill and reflect keep her alive despite 75 HP. If she's focused
+  while out of MP, she goes down fast.
+
+### Sarah (Rogue, front row)
+
+*Short (not as short as Sam), dark hair, glasses, sweater and black leggings.*
+*"Clock it." / "Stop stealing my leads."*
+
+| HP | ATK | DEF | Crit | Dodge |
+|---|---|---|---|---|
+| 100 | 13 | 0% | 15% | 12% |
+
+Pure damage: no defense, no crowd control. She stacks Bleeds, then detonates them.
+
+**Energy.** Sarah has 100 max Energy and starts each fight at 0. Builders make Energy
+and have short cooldowns. Dab spends it, and her ultimate scales with it.
+**Detonating** a Bleed deals all of its remaining damage instantly (times a multiplier)
+and removes it.
+
+| Ability | CD | Energy | Effect |
+|---|---|---|---|
+| **The Worm** | 2 | +8 per hit | Flops on the ground throwing 4 knives at random enemies: 30% ATK each, and each hit Bleeds (20% ATK a turn, 3 turns). *+1 knife at r3 and r5.* |
+| **Scuba** | 2 | +10 per hit | Slashes one enemy 3 times for 40% ATK each. Every hit adds a Bleed stack (25% ATK a turn). *+1 slash at r3 and r5.* |
+| **Dab** | - | costs 50 | Hits a mean dab: **detonates every Bleed on every enemy** at 150%. *+25% per rank. At r4 it costs 40.* |
+| **Catching the Fish** | 3 | +20 | Reels in the **highest-HP enemy** automatically, then stabs it: 150% ATK and Bleed (40% ATK a turn). *+15% damage per rank.* |
+| **Passive, Dance Rehearsal** | - | - | Rehearses during enemy turns: +4% damage every round, up to +40%. *+1% per round per rank.* |
+| **Ultimate, Subaru Drive-by** | - | spends all | Drives by every enemy: 120% ATK and a Bleed, then detonates every Bleed at 100% **+1% for each point of Energy spent** (so at 100 Energy, 200%). *+20% detonate per rank.* |
+
+**Weapons:**
+
+| Weapon | Cost | Basic attack | Bonus |
+|---|---|---|---|
+| **Colorguard Gun** (default) | - | 130% ATK blunt, one enemy | 25% chance to detonate the target's Bleeds at 75%. It's a prop, not a real gun. |
+| **Tambourine** | 20 PTO | No damage | The whole party deals +15% damage for a turn, and Sarah gets +15 Energy. |
+| **The Great State of Ohio** | 24 PTO | 40% ATK to all enemies | 60% chance each for Bleed and Poison (25% ATK a turn) on every enemy. |
+
+**Why it balances:**
+- She does nothing but damage, so she's the best boss killer, but she has no way to
+  protect herself. She needs James's taunts or Cam's stuns to stay alive.
+- Her damage builds up: weak on turns 1-2, a monster by turn 6 (Rehearsal + a full
+  Energy Subaru). Short minion fights favor the other heroes, and long boss fights
+  favor her.
+- To keep Dab from one-shotting a boss, detonation damage is capped at 35% of a boss's
+  max HP per detonation.
+
+### New skins and achievements
+
+| Hero | Free skins | Unlock skin | Achievement |
+|---|---|---|---|
+| Sam | Classic (black dress), Witch Hat | Booster Seat Throne | **I Hate Mason:** crit Rage Bait on 3 enemies in one fight with Mason in the party. |
+| Sam | | TruckSmarter Escapee (hi-vis, broken badge) | **4'8 Is Not That Short:** win a boss fight without Sam taking damage. |
+| Sarah | Classic (sweater, glasses), Colorguard Uniform | Subaru Racing Jacket | **Clock It:** detonate 150+ damage with one Dab. |
+| Sarah | | Ohio Hoodie | **Stop Stealing My Leads:** land the killing blow on 3 bosses (all-time). |
+
+New combat features the engine port needs to support:
+- MP and Energy resources
+- the Exposed status (can't dodge)
+- Bleed detonation
+- "highest-HP enemy" auto-targeting
+- weapons that change MP regen or ability damage
+
 ## 4. The bosses
 
 Stats are on the original's scale: original bosses had 240-310 HP and 11-13 ATK,
@@ -284,6 +398,8 @@ added for the new bosses.
 - **James:** Classic (brown matching set), Gym Fit (tank top, lifting belt)
 - **Cole:** Classic (patterned button-up), Golf Polo
 - **Cam:** Classic (Mind Goblin cap), Gamer Hoodie
+- **Sam:** Classic (black dress), Witch Hat
+- **Sarah:** Classic (sweater, glasses), Colorguard Uniform
 
 **Unlockable:** see section 6. A few extras are sold for Village Sauce on the Suit Up
 screen.
@@ -317,8 +433,6 @@ animation. See [ART_PIPELINE.md](ART_PIPELINE.md).
   new look and one new trick.
 - **The Ghost of James Civelli** is party James's own old-job self.
 - **Platforms:** phone and PC.
-
-## 10. Open questions
-
-- The original's bosses (Middle Manager, HR Rep, ...): gone for good, or occasional
-  surprise bosses in cycle 3+?
+- **The original's bosses** (Middle Manager, Corporate Mascot, Legacy Code, HR Rep,
+  Logistics Director) do **not** return. The combat engine and the four heroes carry
+  over, and **two new heroes** join the roster, so you pick 4 of 6.
