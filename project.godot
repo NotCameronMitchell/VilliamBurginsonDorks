@@ -1,0 +1,22 @@
+; Engine configuration file.
+; Open this folder in Godot 4.7+ (Import > select this file).
+
+config_version=5
+
+[application]
+
+config/name="Villiam Burginson Dorks"
+config/description="The 3D sequel to The Quest for Villiam Burginson."
+run/main_scene="res://scenes/title/title.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
