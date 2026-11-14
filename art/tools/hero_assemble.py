@@ -12,6 +12,9 @@ Options (after --):
     --motions DIR     read motions from DIR (default art/heroes/motion)
     --out DIR         write .glb files here (default assets/models/heroes)
     --render DIR      render a contact sheet of every animation into DIR
+    --makehuman       build MakeHuman heroes with generated outfits (the current route)
+    --skins a,b|all   build these skins (hero_looks.SKINS) instead of the heroes
+    --looks-only      just build and render a portrait of each (no motions, no export)
     --no-export       don't write .glb files
     --log FILE        write progress here
 
@@ -156,6 +159,7 @@ for _s, _p, _l in (("left", "l_", "l"), ("right", "r_", "r")):
         for _k in (1, 2, 3):
             TARGET_NAMES[_p + _f + str(_k)] = [_s + "hand" + _f + str(_k), _f + "0" + str(_k) + _l]
 
+TORSO = {"hips", "spine", "spine1", "spine2", "neck", "head", "l_shoulder", "r_shoulder"}
 REQUIRED = ["hips", "spine", "head", "l_arm", "r_arm", "l_forearm", "r_forearm",
             "l_upleg", "r_upleg", "l_leg", "r_leg", "l_foot", "r_foot"]
 
@@ -269,8 +273,9 @@ def smooth(xy, window):
 class Retargeter:
     """Retargets Kimodo motions onto one armature (Meshy's rig or the mannequin)."""
 
-    def __init__(self, arm):
+    def __init__(self, arm, align_torso=False):
         self.arm = arm
+        self.align_torso = align_torso  # True for rigs whose rest spine isn't a natural pose
         self.tmap = find_target_bones(arm)
         self.slot_of = {v: k for k, v in self.tmap.items()}
         mw = arm.matrix_world.copy()
@@ -305,10 +310,17 @@ class Retargeter:
         P = mo.P @ YW.T
         R = np.einsum("ij,tkjl,ml->tkim", YW, mo.R, Yn)
 
-        # Line each target bone up with its source bone in the rest pose.
+        # Line each limb bone up with its source bone in the rest pose (the target may stand
+        # in an A-pose; the source's rest is a T-pose). The torso, neck, head and collarbones
+        # keep the target's own rest posture and only take the motion on top of it: lining
+        # them up with the source's straight T-pose spine arched the back and hiked the
+        # shoulders.
         slots = {s: j for s, j in SOMA_SLOTS.items() if s in t and mo.has(j)}
         align = {}
         for s, j in slots.items():
+            if s in TORSO and not self.align_torso:
+                align[s] = Matrix.Identity(3)
+                continue
             child = CHILD.get(s)
             src_child = SOMA_SLOTS.get(child) if child else None
             if not (src_child and mo.has(src_child)):
@@ -1088,7 +1100,10 @@ def slim_materials():
     def see_through(m):
         names = [m.name.lower()] + [n.image.name.lower() for n in m.node_tree.nodes
                                     if n.type == "TEX_IMAGE" and n.image]
-        return any(s in nm for nm in names for s in SEE_THROUGH)
+        if any(s in nm for nm in names for s in SEE_THROUGH):
+            return True
+        bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        return bool(bsdf and not bsdf.inputs["Alpha"].links and bsdf.inputs["Alpha"].default_value < 0.99)  # ghost
 
     for m in bpy.data.materials:
         if not m.use_nodes or not m.node_tree:
@@ -1171,15 +1186,18 @@ def first_file(folder, names):
 def build(mid, motions_dir, mode):
     """mode: "auto" (art/heroes/<id>/rigged.* or model.*), "mannequin" or "test-body"."""
     clear_scene()
-    spec = H.spec(mid)
-    owner = H.motion_owner(mid)
+    import hero_looks as L
+    base = L.base_of(mid)  # a skin uses its hero's body and motions
+    spec = H.spec(base)
+    owner = H.motion_owner(base)
     if mode == "mannequin":
         arm = build_mannequin(spec["height"])
     elif mode == "makehuman":
         import hero_mpfb
         stock = arg("--stock")
         log("%s: building with MakeHuman%s" % (mid, " (stock clothes: %s)" % stock if stock else ""))
-        arm = hero_mpfb.build(mid, stock_clothes=stock.split(",") if stock else None, log=log)
+        arm = hero_mpfb.build(base, stock_clothes=stock.split(",") if stock else None, log=log,
+                              look=L.look(mid) if mid != base else None, name=mid)
     elif mode == "test-body":
         arm = auto_rig(build_test_body(spec["height"]), spec["height"])
     else:
@@ -1221,6 +1239,10 @@ def main():
         os.remove(LOG)
     only = arg("--only")
     ids = only.split(",") if only else H.all_ids()
+    skins = arg("--skins")  # skin ids from hero_looks.SKINS ("all" for every one)
+    if skins:
+        import hero_looks as L
+        ids = list(L.SKINS) if skins is True or skins == "all" else skins.split(",")
     motions_dir = arg("--motions") or os.path.join(ROOT, "art", "heroes", "motion")
     out_dir = arg("--out") or os.path.join(ROOT, "assets", "models", "heroes")
     render_dir = arg("--render")

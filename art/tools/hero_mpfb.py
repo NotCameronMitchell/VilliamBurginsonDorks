@@ -176,11 +176,12 @@ def finalize(rig, basemesh, model_id):
     return height
 
 
-def build(model_id, stock_clothes=None, look=None, log=print):
+def build(model_id, stock_clothes=None, look=None, log=print, name=None):
+    """model_id: whose body (hero or form); look/name: a skin's outfit and file name."""
     rig, basemesh = build_base(model_id, stock_clothes=stock_clothes)
     if stock_clothes is None:
         import garments
-        garments.dress(rig, basemesh, model_id, look=look)
+        garments.dress(rig, basemesh, name or model_id, look=look)
     measured = finalize(rig, basemesh, model_id)
     log("  body measured %.3f m, scaled to %.2f m" % (measured, H.spec(model_id)["height"]))
     return rig

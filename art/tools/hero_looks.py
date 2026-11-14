@@ -103,11 +103,97 @@ FORM_LOOKS = {
 }
 
 
+def _suit(jacket, tie, pants=None, shirt="#f4f4f6", shoes="#141414", mat=None):
+    top = {"type": "jacket", "color": jacket, "sleeves": "long", "buttons": True}
+    bottom = {"type": "pants", "color": pants or jacket}
+    if mat:
+        top["material"] = bottom["material"] = mat
+    return {"under": {"type": "buttonup", "color": shirt, "sleeves": "long", "tie": tie},
+            "top": top, "bottom": bottom, "shoes": {"type": "leather", "color": shoes, "sole": "#0c0c0c"}}
+
+
+def _keep_acc(lk, drop=(), add=()):
+    return [a for a in lk.get("acc", []) if a not in drop] + list(add)
+
+
+# Skins (scripts/data/outfits.gd): skin id -> (hero, changes to the hero's look). Only what
+# changes is listed; a new skin is a new entry here, then
+# heroes.ps1 assemble --makehuman --skins <id>.
+SKINS = {
+    "mason_home": ("mason", {"top": {"type": "jersey", "color": "#d7263d", "sleeves": "short",
+                                     "trim": ["#ffffff", "#1a1a1a"]},
+                             "bottom": {"type": "pants", "color": "#f4f4f4"}}),
+    "james_gym": ("james", {"top": {"type": "tank", "color": "#2d2f36", "sleeves": "none"},
+                            "bottom": {"type": "shorts", "color": "#1d1e22"}, "acc": ["belt"]}),
+    "cole_polo": ("cole", {"top": {"type": "polo", "color": "#2e86c1", "sleeves": "short"}}),
+    "cam_hoodie": ("cam", {"top": {"type": "hoodie", "color": "#2b2d42", "sleeves": "long", "print": "cyber",
+                                   "print_color": "#39ff88"}}),
+    "sam_witch": ("sam", {"acc": ["witch_hat"]}),
+    "sarah_colorguard": ("sarah", {"top": {"type": "jersey", "color": "#5b2a86", "sleeves": "long",
+                                           "trim": ["#e8c547", "#e8c547"], "pattern": "sash",
+                                           "pattern_color": "#e8c547"},
+                                   "bottom": {"type": "pants", "color": "#2b1640"}}),
+    "mason_suit": ("mason", _suit("#1c2541", "#8b1a1a")),
+    "james_suit": ("james", _suit("#34373f", "#c9a227")),
+    "cole_suit": ("cole", _suit("#14213d", "#ce1126")),
+    "cam_suit": ("cam", _suit("#111216", "#2ecc71")),
+    "mason_united": ("mason", {"top": {"type": "jersey", "color": "#da291c", "sleeves": "short",
+                                       "trim": ["#ffffff", "#ffffff"], "number": "7", "number_color": "#ffffff"},
+                               "bottom": {"type": "shorts", "color": "#f6f6f6"}}),
+    "cole_olemiss": ("cole", {"top": {"type": "jersey", "color": "#14213d", "sleeves": "short",
+                                      "trim": ["#ce1126", "#ffffff"], "number": "1", "number_color": "#ffffff"},
+                              "bottom": {"type": "pants", "color": "#d9d9d9"}}),
+    "james_newjob": ("james", {"top": {"type": "buttonup", "color": "#cfe3f5", "sleeves": "long"},
+                               "bottom": {"type": "pants", "color": "#3b3f4a"}, "acc": ["lanyard"]}),
+    "cam_kith": ("cam", {"top": {"type": "hoodie", "color": "#e9e4da", "sleeves": "long", "text": "DRIP",
+                                 "text_color": "#ffffff", "text_box": "#c8102e"}}),
+    "cole_trucker": ("cole", {"acc": ["cap"], "cap": {"color": "#c0392b", "front": "#f4f4f4"}}),
+    "cam_stirrer": ("cam", {"acc": ["cap", "sunglasses", "stirrer"]}),
+    "mason_hoodie": ("mason", {"top": {"type": "hoodie", "color": "#151518", "sleeves": "long"},
+                               "bottom": {"type": "joggers", "color": "#1d1d21"}, "acc": []}),
+    "james_ghost": ("james", {"ghost": True}),
+    "sam_throne": ("sam", {"acc": ["crown", "cape"]}),
+    "sam_trucksmarter": ("sam", {"under": {"type": "tee", "color": "#4a4d55", "sleeves": "short"},
+                                 "top": {"type": "vest", "color": "#d6ff1f", "pattern": "reflective"},
+                                 "bottom": {"type": "pants", "color": "#34495e"}, "acc": ["lanyard"],
+                                 "lanyard_color": "#e67e22"}),
+    "sarah_subaru": ("sarah", {"top": {"type": "quarterzip", "color": "#1f3d99", "sleeves": "long",
+                                       "pattern": "stripes", "stripes": ["#f1c40f"], "zip": "full"}}),
+    "sarah_ohio": ("sarah", {"top": {"type": "hoodie", "color": "#bb0000", "sleeves": "long", "text": "OHIO",
+                                     "text_color": "#ffffff"}}),
+}
+
+# Party-wide skins: one per hero, made from the hero's own look.
+PARTY = {
+    "headphones": lambda lk: {"acc": _keep_acc(lk, add=["headphones"])},
+    "burger": lambda lk: {"top": {"type": "polo", "color": "#d62828", "sleeves": "short", "trim": ["#ffd23f"]},
+                          "acc": _keep_acc(lk, drop=["cap"], add=["paper_hat"])},
+    "golden": lambda lk: dict(_suit("#e6c04f", "#1a1a1a", shirt="#111111", mat="gold")),
+    "casual": lambda lk: {"top": {"type": "quarterzip", "color": "#2c3e50", "sleeves": "long"},
+                          "bottom": {"type": "skirt" if lk["bottom"]["type"] == "skirt" else "pants",
+                                     "color": "#3b5998"}},
+    "holiday": lambda lk: {"top": {"type": "sweater", "color": "#b8222e", "sleeves": "long", "pattern": "holiday"}},
+}
+for _h in list(LOOKS):
+    for _s, _f in PARTY.items():
+        SKINS["%s_%s" % (_h, _s)] = (_h, _f(LOOKS[_h]))
+
+
+def base_of(model_id):
+    """The hero or form whose body (and motions) a model uses."""
+    if model_id in SKINS:
+        return SKINS[model_id][0]
+    return model_id
+
+
 def look(model_id):
-    """The full look for a hero or form id."""
+    """The full look for a hero, form or skin id."""
     if model_id in LOOKS:
         return dict(LOOKS[model_id])
-    base, over = FORM_LOOKS[model_id]
-    out = dict(LOOKS[base])
+    if model_id in SKINS:
+        base, over = SKINS[model_id]
+    else:
+        base, over = FORM_LOOKS[model_id]
+    out = look(base) if base in FORM_LOOKS else dict(LOOKS[base])
     out.update(over)
     return out

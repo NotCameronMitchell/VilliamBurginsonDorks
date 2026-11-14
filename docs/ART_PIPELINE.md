@@ -232,10 +232,58 @@ or `assets/models/bosses/angry_trucker.glb`.
 
 ## Skins
 
-- **Recolor skins:** a new palette PNG in `assets/textures/skins/<hero>_<skin>.png`.
-  No new model.
-- **New-outfit skins** (suit, burger uniform): a separate mesh in the hero's `.blend`,
-  weighted to the same armature, exported as `assets/models/heroes/<hero>_<skin>.glb`.
+Every skin in `scripts/data/outfits.gd` is a detailed hero in a different outfit, built from
+data. A skin is an entry in `SKINS` in `art/tools/hero_looks.py`: which hero it is, and what
+changes from their usual look. Party-wide skins (headphones, burger, golden, casual, holiday)
+are generated for every hero from `PARTY`. Build them with:
+
+```
+powershell -File art/tools/heroes.ps1 assemble --makehuman --skins all
+powershell -File art/tools/heroes.ps1 assemble --makehuman --skins mason_suit,cam_kith --looks-only --render C:\temp\skins
+```
+
+Each skin is written to `assets/models/heroes/<skin id>.glb`, the model key the game
+already looks for. Recolor skins (`mason~mason_home`) also find `<palette>.glb` first.
+
+What the outfit generator knows:
+- **Top types:** `tee`, `jersey` (V-neck, trims, number), `buttonup` (collar), `polo`,
+  `sweatshirt`, `sweater`, `hoodie` (hood, drawstrings, pocket), `quarterzip` (stand collar,
+  zipper), `jacket` (deep V, lapels, buttons), `vest`, `tank` and `dress`.
+- **Layers:** `"under"` puts a second top beneath, such as a shirt and tie under a jacket or a
+  tee under a hi-vis vest.
+- **Prints and patterns:**
+  - `number` (with `number_color`)
+  - `print: cyber`
+  - `text` in block capitals, optionally in a `text_box`
+  - `tie`
+  - `pattern`, one of `dots`, `stripes`, `holiday`, `sash` or `reflective`
+  - `material: gold`
+- **Bottoms:** `pants`, `joggers`, `shorts`, `leggings` and `skirt`.
+- **Accessories (`acc`):**
+  - `cap` (with `"cap": {"color", "front"}` for a trucker cap), `glasses`, `sunglasses`
+    and `watch`
+  - `headphones`, `witch_hat`, `paper_hat`, `crown`, `cape`, `lanyard`, `belt` and
+    `stirrer` (`art/tools/accessories.py`)
+- **Ghost:** `"ghost": True` makes everything pale, glowing and see-through.
+
+## Trailer
+
+`art/trailer/` makes the game's cinematic trailer in Blender: a frozen office at night and
+the Ghost of James Civelli on a throne of office chairs. Then the heroes, the game's own
+models, clock in to fight him. All lines are original.
+
+```
+powershell -File art/trailer/make_trailer.ps1                      # everything, to Videos\VilliamBurginsonDorks_trailer
+powershell -File art/trailer/make_trailer.ps1 -Res 1920x1080        # sharper (slower)
+powershell -File art/trailer/make_trailer.ps1 -Step stills          # one still per shot, to check
+```
+
+- **`timeline.py`:** the shot list, narration, on-screen text and the music's hits.
+- **`music.py`:** synthesizes the soundtrack (drones, choir, music box, strings, taiko,
+  brass, risers). It mixes in the narration, which comes from Windows' built-in voice.
+- **`trailer.py`:** builds the set and the ghost, and animates the heroes with their game
+  animations. It renders the frames, then cuts in the titles, subtitles, fades and sound
+  with Blender's video editor.
 
 ## Model checklist
 

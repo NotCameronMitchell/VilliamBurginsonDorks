@@ -33,6 +33,7 @@ from hero_builder import Canvas, draw_digits, hexc
 B = "mixamorig:"
 TEXDIR = tempfile.mkdtemp(prefix="vbd_garment_tex_")
 SHOES = {"sneakers": "shoes05", "leather": "shoes01", "flats": "shoes04", "boots": "shoes03"}
+GOLD_METAL = 0.5  # fully metallic gold looks almost black without much to reflect (game scenes)
 ARMS = ["LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand"]
 
 
@@ -617,13 +618,14 @@ def scaled(profile, k):
 
 
 # =========================================================================== materials
-def material(name, color=None, image=None, rough=0.8):
+def material(name, color=None, image=None, rough=0.8, metal=0.0):
     m = bpy.data.materials.new(name)
     try:
         m.use_nodes = True
     except Exception:
         pass
     bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Metallic"].default_value = metal
     if image is not None:
         tex = m.node_tree.nodes.new("ShaderNodeTexImage")
         tex.image = image
@@ -713,8 +715,145 @@ def paint_top(bd, look_top, model_id, S=1024):
             cv.rect(cx - wdt * ppm / 2, cy - (0.016 + i * 0.02) * ppm, cx + wdt * ppm / 2, cy - (0.008 + i * 0.02) * ppm, pc)
         cv.rect(cx - 0.025 * ppm, cy + 0.008 * ppm, cx + 0.025 * ppm, cy + 0.034 * ppm, pc)
         cv.rect(cx - 0.015 * ppm, cy + 0.015 * ppm, cx + 0.015 * ppm, cy + 0.027 * ppm, col)
+    k = bd.height / 1.8
+    neck_rel = (bd.j("Neck")[2] - 0.02 * k) - chest_z  # the front of the neckline, from the chest center
+    # Patterns placed by where they sit on the body (around the torso and arms).
+    pat = look_top.get("pattern")
+    if pat in ("stripes", "holiday", "sash", "reflective"):
+        X, Z, ok = body_maps(bd, S)
+        zr = Z - chest_z
+        if pat == "stripes":  # bands around the chest and arms
+            for i, c in enumerate(look_top.get("stripes", ["#ffffff"])):
+                band = (np.abs(zr - (-0.02 - i * 0.05)) < 0.016) & ok
+                cv.a[band] = hexc(c)
+        elif pat == "reflective":  # hi-vis: two silver bands
+            for zc in (-0.10, -0.24):
+                band = (np.abs(zr - zc) < 0.018) & ok
+                cv.a[band] = np.array([0.82, 0.84, 0.86])
+        elif pat == "sash":  # from the left shoulder to the right hip, front and back
+            d = np.abs(0.8 * X - 0.6 * zr - 0.02) < 0.035
+            cv.a[d & ok] = hexc(look_top.get("pattern_color", "#e8c547"))
+        elif pat == "holiday":  # an ugly sweater: zigzag band, snowflakes, little trees
+            white, green = np.array([0.95, 0.95, 0.95]), np.array([0.1, 0.45, 0.2])
+            zig = np.abs(zr - 0.03 - 0.025 * np.abs(((X * 25) % 2) - 1)) < 0.012
+            cv.a[zig & ok] = white
+            zig2 = np.abs(zr + 0.27 - 0.02 * np.abs(((X * 25 + 1) % 2) - 1)) < 0.01
+            cv.a[zig2 & ok] = white
+            fx, fz = ((X * 14) % 1) - 0.5, ((zr * 14) % 1) - 0.5
+            flake = (np.hypot(fx, fz) < 0.12) & (zr > 0.08) & ok
+            cv.a[flake] = white
+            tx, tz = ((X * 12) % 1) - 0.5, (zr + 0.2) / 0.1
+            tree = (tz > 0) & (tz < 1) & (np.abs(tx) < 0.35 * (1 - tz)) & ok
+            cv.a[tree] = green
+    if look_top.get("tie"):  # down the shirt front
+        tcol = hexc(look_top["tie"])
+        poly(cv, [fr.px(x, neck_rel + z) for x, z in ((-0.012, -0.004), (0.012, -0.004), (0.009, -0.03),
+                                                    (-0.009, -0.03))], tcol * 0.85)
+        poly(cv, [fr.px(x, neck_rel + z) for x, z in ((-0.008, -0.03), (0.008, -0.03), (0.024, -0.33), (0.0, -0.37),
+                                                    (-0.024, -0.33))], tcol)
+    if look_top.get("buttons"):  # jacket front
+        for z in (-0.27, -0.36):
+            x0, y0 = fr.px(0.0, z)
+            cv.ellipse(x0, y0, 0.007 * ppm, 0.007 * ppm, col * 0.45)
+    if tp == "polo":  # placket and buttons
+        cv.line([fr.px(0, neck_rel), fr.px(0, neck_rel - 0.13)], 0.022 * ppm, col * 0.85)
+        for z in (-0.03, -0.075, -0.115):
+            x0, y0 = fr.px(0.0, neck_rel + z)
+            cv.ellipse(x0, y0, 0.005 * ppm, 0.005 * ppm, np.array([0.95, 0.95, 0.95]))
+    if tp == "quarterzip":  # zipper
+        length = 0.55 if look_top.get("zip") == "full" else 0.2
+        cv.line([fr.px(0, neck_rel + 0.02), fr.px(0, neck_rel - length)], 0.006 * ppm, np.array([0.78, 0.8, 0.82]))
+        x0, y0 = fr.px(0.0, neck_rel - 0.01)
+        cv.rect(x0 - 0.006 * ppm, y0 - 0.02 * ppm, x0 + 0.006 * ppm, y0, np.array([0.8, 0.82, 0.85]))
+    if tp == "hoodie":  # kangaroo pocket
+        pk = [fr.px(x, z) for x, z in ((-0.12, -0.24), (0.12, -0.24), (0.09, -0.36), (-0.09, -0.36))]
+        poly(cv, pk, col * 0.9)
+        cv.line(pk + [pk[0]], 0.004 * ppm, col * 0.7)
+    if look_top.get("text"):  # block letters on the chest, maybe in a box
+        txt = look_top["text"]
+        hgt = 0.065
+        if look_top.get("text_box"):
+            w = 0.035 * len(txt) + 0.03
+            poly(cv, [fr.px(x, z) for x, z in ((-w / 2, 0.055), (w / 2, 0.055), (w / 2, -0.035), (-w / 2, -0.035))],
+                 hexc(look_top["text_box"]))
+        draw_text(cv, fr, txt, 0.0, 0.01, hgt, hexc(look_top.get("text_color", "#ffffff")), ppm)
     cv.noise(0.012, seed=5)
     return cv.image("%s_top_%s" % (model_id, tp))
+
+
+def body_maps(bd, S):
+    """For each texel of a body-UV texture: the body point's x and z (meters), and whether
+    any face covers it."""
+    xn = (bd.co[:, 0] + 1.0) / 2.0
+    zn = (bd.co[:, 2] - bd.ground + 0.05) / (bd.height + 0.1)
+    X = raster_alpha(bd, np.clip(xn, 0.0001, 1), S, S)
+    Z = raster_alpha(bd, np.clip(zn, 0.0001, 1), S, S)
+    ok = (X > 0) & (Z > 0)
+    return X * 2.0 - 1.0, Z * (bd.height + 0.1) + bd.ground - 0.05, ok
+
+
+def poly(cv, pts, color):
+    """Fills a polygon (pixel coordinates) on a Canvas."""
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    win = cv._win(min(xs) - 1, max(xs) + 1, min(ys) - 1, max(ys) + 1)
+    if not win:
+        return
+    sl, xx, yy = win
+    inside = np.zeros(xx.shape, bool)
+    n = len(pts)
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        cond = (y1 > yy) != (y2 > yy)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            xint = (x2 - x1) * (yy - y1) / (y2 - y1 + 1e-12) + x1
+        inside ^= cond & (xx < xint)
+    cv._blend(sl, inside.astype(float), color)
+
+
+FONT5x7 = {
+    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+    "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+    "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+    "N": ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+    "W": ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
+    "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+}
+
+
+def draw_text(cv, fr, text, x0, z0, hgt, color, ppm):
+    """Block capitals centered at (x0, z0) meters on the body; hgt = letter height."""
+    cell = hgt / 7.0
+    width = len(text) * 6 * cell - cell
+    left = x0 - width / 2  # someone facing the hero reads from their left: the hero's right, -x
+    for i, ch in enumerate(text.upper()):
+        rows = FONT5x7.get(ch)
+        if rows is None:
+            continue
+        for r, row in enumerate(rows):
+            for c, bit in enumerate(row):
+                if bit == "1":
+                    cx = left + (i * 6 + c + 0.5) * cell
+                    cz = z0 + hgt / 2 - (r + 0.5) * cell
+                    px, py = fr.px(cx, cz)
+                    hw = cell * ppm * 0.62  # cells overlap a little, so strokes are solid
+                    cv.rect(px - hw, py - hw, px + hw, py + hw, color)
 
 
 def plain_texture(name, color, noise=0.02, S=256):
@@ -930,9 +1069,16 @@ def add_accessories(bd, rig, look, model_id):
         front = bd.co[upper][np.argmin(bd.co[upper][:, 1])]
         # The cap's rim: just above the brows in front, a little lower at the back.
         rim = dict(co=(0.0, front[1], brow_z), no=(0.0, -0.1, -1.0), where=dict(zmin=brow_z - 0.1 * k))
-        capm = material("%s_cap" % model_id, hexc("#16161a"), rough=0.75)
+        capc = look.get("cap", {})
+        capm = material("%s_cap" % model_id, hexc(capc.get("color", "#16161a")), rough=0.75)
         cap, cap_edges = garment(bd, mask, "%s.cap" % model_id, 0.022 * k, capm, rig, smooth=4, thickness=0.004,
                                  cuts=[rim])
+        if capc.get("front"):  # a trucker cap: a different front panel
+            cap.data.materials.append(material("%s_cap_front" % model_id, hexc(capc["front"]), rough=0.8))
+            ymid = float(np.median(bd.co[mask][:, 1]))
+            for p in cap.data.polygons:
+                if p.center.y < ymid - 0.01 * k:
+                    p.material_index = 1
         for e in cap_edges:
             strip("%s.cap_band" % model_id, e, scaled([(-0.002, -0.002), (-0.002, 0.001), (0.0, 0.002), (0.012, 0.0015)], k),
                   capm, rig)
@@ -1042,7 +1188,9 @@ def dress(rig, basemesh, model_id, look=None):
     hem_z = hips_z + 0.02 * k
     covered = np.zeros(len(bd.co), bool)
     # ---------------------------------------------------------------- bottoms (under the top)
-    bmat = material("%s_bottom" % model_id, image=plain_texture("%s_bottom" % model_id, bottom["color"]), rough=0.85)
+    gold = bottom.get("material") == "gold"
+    bmat = material("%s_bottom" % model_id, image=plain_texture("%s_bottom" % model_id, bottom["color"]),
+                    rough=0.38 if gold else 0.85, metal=GOLD_METAL if gold else 0.0)
     if bt == "skirt":
         z_top = waist_z
         z_hem = bd.j("LeftLeg")[2] - 0.06 * k
@@ -1124,19 +1272,75 @@ def dress(rig, basemesh, model_id, look=None):
             else:
                 prof = WAISTBAND
             strip("%s.%s_band" % (model_id, bt), e, scaled(prof, k), cuff, rig)
-    # ---------------------------------------------------------------- top
-    sleeves = top.get("sleeves", "short")
-    if tt == "dress":
-        sleeves = "cap"
-    top_hem = hem_z if tt != "dress" else waist_z - 0.02 * k
+    # ---------------------------------------------------------------- tops (a shirt under a jacket...)
+    if look.get("under"):
+        covered |= build_top(bd, rig, look["under"], model_id + "_under", hem_z, waist_z, under=True)
+    covered |= build_top(bd, rig, top, model_id, hem_z, waist_z, over=bool(look.get("under")))
+    hide_body(bd, covered, rings=2)
+    add_accessories(bd, rig, look, model_id)
+    import accessories
+    accessories.add(bd, rig, look, model_id)
+    if look.get("ghost"):
+        ghostify(rig)
+
+
+# Top types: (default sleeves, neckline (front dip, back rise, V depth, V half-width in
+# radians), offset from the body, fill, thick ribbed edges). Lengths are times k.
+TOP_STYLE = {
+    "tee": ("short", (0.03, 0.01, 0.0, 0.6), 0.016, 0.65, False),
+    "jersey": ("short", (0.03, 0.01, 0.05, 0.6), 0.017, 0.7, False),
+    "buttonup": ("short", (0.025, 0.012, 0.0, 0.6), 0.018, 0.75, False),
+    "polo": ("short", (0.025, 0.012, 0.0, 0.6), 0.017, 0.7, False),
+    "sweatshirt": ("long", (0.03, 0.01, 0.0, 0.6), 0.020, 0.9, True),
+    "sweater": ("long", (0.03, 0.01, 0.0, 0.6), 0.022, 0.9, True),
+    "hoodie": ("long", (0.035, 0.01, 0.0, 0.6), 0.024, 0.92, True),
+    "quarterzip": ("long", (0.02, 0.015, 0.0, 0.6), 0.021, 0.88, True),
+    "jacket": ("long", (0.03, 0.012, 0.17, 0.85), 0.028, 0.92, False),
+    "vest": ("none", (0.03, 0.01, 0.12, 0.7), 0.034, 0.9, False),
+    "tank": ("none", (0.085, -0.03, 0.0, 0.6), 0.014, 0.55, False),
+    "dress": ("cap", (0.04, 0.0, 0.0, 0.6), 0.010, 0.45, False),
+}
+POLO_COLLAR = [(0.0, -0.001), (-0.012, 0.0015), (-0.015, 0.004), (-0.009, 0.006), (0.002, 0.007), (0.018, 0.005),
+               (0.022, 0.0025)]
+STAND = [(0.0, -0.001), (-0.006, 0.0022), (-0.026, 0.0042), (-0.03, 0.002)]
+LAPEL = [(-0.004, 0.001), (-0.002, 0.0065), (0.04, 0.007), (0.05, 0.003)]
+HOOD = [(-0.01, 0.0), (-0.03, 0.03), (0.0, 0.07), (0.06, 0.08), (0.11, 0.05), (0.14, 0.01)]
+
+
+def sub_edge(edge, keep):
+    """The longest run of an edge loop where keep is True, as an open edge."""
+    n = len(keep)
+    if keep.all() or not keep.any():
+        return None
+    start = int(np.argmax(~keep))  # rotate so the loop starts outside the run
+    order = np.roll(np.arange(n), -start)
+    k2 = keep[order]
+    best, cur, best_rng = 0, 0, (0, 0)
+    for i, v in enumerate(k2):
+        cur = cur + 1 if v else 0
+        if cur > best:
+            best, best_rng = cur, (i - cur + 1, i + 1)
+    idx = order[best_rng[0]:best_rng[1]]
+    if len(idx) < 3:
+        return None
+    return dict(P=edge["P"][idx], N=edge["N"][idx], D=edge["D"][idx], W=[edge["W"][i] for i in idx], closed=False)
+
+
+def build_top(bd, rig, top, name, hem_z, waist_z, under=False, over=False):
+    """Makes one top (shirt, hoodie, jacket...). Returns the body vertices it covers."""
+    Hm = bd.height
+    k = Hm / 1.8
+    tt = top["type"]
+    st = TOP_STYLE.get(tt, TOP_STYLE["tee"])
+    sleeves = {"dress": "cap", "tank": "none", "vest": "none"}.get(tt, top.get("sleeves", st[0]))
+    hips_z = bd.j("Hips")[2]
+    top_hem = {"dress": waist_z - 0.02 * k, "jacket": hips_z - 0.05 * k}.get(tt, hem_z)
     nh = bd.j("Neck")
     z_side = nh[2] + 0.012 * Hm
-    # Neckline shapes: (front dip, back rise, V depth), all times k.
-    shape = {"tank": (0.085, -0.03, 0.0), "dress": (0.04, 0.0, 0.0), "jersey": (0.03, 0.01, 0.05),
-             "buttonup": (0.025, 0.012, 0.0)}.get(tt, (0.03, 0.01, 0.0))
-    neck_f = neckline(nh[1], z_side, shape[0] * k, shape[1] * k, v_depth=shape[2] * k)
+    fd, br, vd, vh = st[1]
+    neck_f = neckline(nh[1], z_side, fd * k, br * k, v_depth=vd * k, v_half=vh)
     tmask = region_top(bd, sleeves, top_hem - 0.05 * k, z_side + 0.05 * k)
-    cuts = [dict(field=neck_f, where=dict(xmax=0.14 * k, zmin=z_side - 0.2 * k, not_bones=ARMS))]
+    cuts = [dict(field=neck_f, where=dict(xmax=0.14 * k, zmin=z_side - 0.3 * k, not_bones=ARMS))]
 
     def neck_snug(P):  # the neckline hugs the neck instead of standing off it
         r = np.hypot(P[:, 0], P[:, 1] - nh[1])
@@ -1145,13 +1349,13 @@ def dress(rig, basemesh, model_id, look=None):
         if sleeves == "none":
             continue
         bone, t = {"short": (side + "Arm", 0.55), "cap": (side + "Arm", 0.22),
-                   "long": (side + "ForeArm", 0.92)}[sleeves]
+                   "long": (side + "ForeArm", 0.86 if tt == "jacket" else 0.92)}[sleeves]
         h, tl = bd.j(bone), bd.j(bone, "t")
         cuts.append(dict(co=h + t * (tl - h), no=tl - h,
                          where=dict(bones=[side + "Arm", side + "ForeArm", side + "Hand"], share=0.45)))
     cuts.append(dict(co=(0.0, 0.0, top_hem), no=(0.0, 0.0, -1.0),
                      where=dict(xmax=0.32 * k, zmax=top_hem + 0.12 * k, not_bones=ARMS)))
-    if tt == "tank":
+    if sleeves == "none":
         for side, sg in (("Left", 1), ("Right", -1)):
             sh = bd.j(side + "Arm")
 
@@ -1162,44 +1366,108 @@ def dress(rig, basemesh, model_id, look=None):
                 beyond = sg * (P[:, 0] - sh[0]) - 0.02 * k
                 return np.maximum(inside, beyond)
             cuts.append(dict(field=armhole, where=dict(xsign=sg, zmin=sh[2] - 0.3 * k)))
-    timg = paint_top(bd, top, model_id)
-    tmat = material("%s_top" % model_id, image=timg, rough=0.85)
-    toff = {"sweatshirt": 0.020, "sweater": 0.022, "buttonup": 0.018, "jersey": 0.017, "tee": 0.016,
-            "tank": 0.014, "dress": 0.010}.get(tt, 0.016) * k
-    tfill = {"sweatshirt": 0.9, "sweater": 0.9, "buttonup": 0.75, "jersey": 0.7, "tee": 0.65,
-             "tank": 0.55, "dress": 0.45}.get(tt, 0.65)
-    tobj, tedges = garment(bd, tmask, "%s.%s" % (model_id, tt), toff, tmat, rig, fill=tfill, smooth=5, cuts=cuts,
-                           snug=(neck_snug, 0.004 * k))
+    gold = top.get("material") == "gold"
+    timg = paint_top(bd, top, name)
+    tmat = material("%s_top" % name, image=timg, rough=0.38 if gold else 0.85, metal=GOLD_METAL if gold else 0.0)
+    off = st[2] * k * (0.6 if under else 1.0) + (0.006 * k if over else 0.0)
+    tobj, tedges = garment(bd, tmask, "%s.%s" % (name, tt), off, tmat, rig, fill=st[3], smooth=5, cuts=cuts,
+                           snug=(neck_snug, (0.003 if under else 0.004 + (0.004 if over else 0.0)) * k))
     keep = np.ones(len(bd.co), bool)
     for c in cuts:
         keep &= cut_keep(bd, c)
-    covered |= tmask & keep
-    rib = material("%s_rib" % model_id, hexc(top["color"]) * 0.9, rough=0.9)
-    hem_m = material("%s_hem" % model_id, hexc(top["color"]) * 0.94, rough=0.85)
+    covered = tmask & keep
+    base = hexc(top["color"])
+    rib = material("%s_rib" % name, base * 0.9, rough=0.38 if gold else 0.9, metal=GOLD_METAL if gold else 0.0)
+    hem_m = material("%s_hem" % name, base * 0.94, rough=0.38 if gold else 0.85, metal=GOLD_METAL if gold else 0.0)
     trims = top.get("trim")
-    trim_m = [material("%s_trim%d" % (model_id, i), hexc(c), rough=0.7) for i, c in enumerate(trims)] if trims else []
-    thick = tt in ("sweatshirt", "sweater")
+    trim_m = [material("%s_trim%d" % (name, i), hexc(c), rough=0.7) for i, c in enumerate(trims)] if trims else []
+    thick = st[4]
     for e in tedges:
         P = e["P"]
         zc, xc = P[:, 2].mean(), np.abs(P[:, 0]).mean()
-        is_neck = zc > bd.j("Spine2")[2] and xc < 0.07 * k
+        is_neck = zc > bd.j("Spine2")[2] - (0.12 * k if vd > 0.1 else 0.0) and xc < 0.09 * k
         is_hem = zc < bd.j("Spine")[2] and P[:, 0].min() < 0 < P[:, 0].max()
         if is_neck:
             if tt == "buttonup":
-                strip("%s.collar" % model_id, e, scaled(COLLAR, k), material("%s_collar" % model_id, hexc(top["color"]) * 0.97,
-                                                                           rough=0.85), rig)
+                strip("%s.collar" % name, e, scaled(COLLAR, k), material("%s_collar" % name, base * 0.97, rough=0.85), rig)
+            elif tt == "polo":
+                strip("%s.collar" % name, e, scaled(POLO_COLLAR, k), trim_m[0] if trim_m else hem_m, rig)
+            elif tt == "quarterzip":
+                strip("%s.collar" % name, e, scaled(STAND, k), rib, rig)
+            elif tt == "jacket":
+                strip("%s.lapels" % name, e, scaled(LAPEL, k), hem_m, rig)
+            elif tt == "vest":
+                strip("%s.edge" % name, e, scaled(HEM, k), hem_m, rig)
             elif trim_m:
-                strip("%s.collar" % model_id, e, scaled(RIB_NECK, k), trim_m[0], rig)
+                strip("%s.collar" % name, e, scaled(RIB_NECK, k), trim_m[0], rig)
                 if len(trim_m) > 1 and trims[1] != trims[0]:
-                    strip("%s.collar_stripe" % model_id, e, scaled([(0.004, 0.0029), (0.008, 0.0029)], k), trim_m[1], rig)
+                    strip("%s.collar_stripe" % name, e, scaled([(0.004, 0.0029), (0.008, 0.0029)], k), trim_m[1], rig)
             else:
-                strip("%s.collar" % model_id, e, scaled(RIB_NECK_THICK if thick else RIB_NECK, k), rib, rig)
+                strip("%s.collar" % name, e, scaled(RIB_NECK_THICK if thick else RIB_NECK, k), rib, rig)
+            if tt == "hoodie":
+                back = sub_edge(e, e["P"][:, 1] > nh[1] - 0.01 * k)
+                if back is not None:
+                    strip("%s.hood" % name, back, scaled(HOOD, k), material("%s_hood" % name, base * 0.85, rough=0.9), rig)
+                front_z = float(P[np.argmin(P[:, 1]), 2])
+                for sg in (1, -1):
+                    x0 = sg * 0.035 * k
+                    y0 = float(P[np.argmin(np.abs(P[:, 0] - x0) + (P[:, 1] > nh[1]) * 9), 1]) - 0.006 * k
+                    tube("%s.string" % name, [Vector((x0, y0, front_z - 0.005)), Vector((x0 * 1.1, y0 - 0.004, front_z - 0.13 * k))],
+                         0.0028 * k, material("%s_string" % name, hexc("#f2f2f2"), rough=0.8), rig, "Spine2", seg=6)
         elif is_hem:
-            strip("%s.hem" % model_id, e, scaled(RIB_WIDE if thick else HEM, k), rib if thick else hem_m, rig)
+            strip("%s.hem" % name, e, scaled(RIB_WIDE if thick else HEM, k), rib if thick else hem_m, rig)
         else:  # sleeves and armholes
             if thick and sleeves == "long":
-                strip("%s.cuff" % model_id, e, scaled(CUFF, k), rib, rig)
+                strip("%s.cuff" % name, e, scaled(CUFF, k), rib, rig)
             else:
-                strip("%s.sleeve_hem" % model_id, e, scaled(HEM, k), trim_m[0] if trim_m else hem_m, rig)
-    hide_body(bd, covered, rings=2)
-    add_accessories(bd, rig, look, model_id)
+                strip("%s.sleeve_hem" % name, e, scaled(HEM, k), trim_m[0] if trim_m else hem_m, rig)
+    return covered
+
+
+def ghostify(rig):
+    """The ghost skin: every material pale, glowing blue and see-through."""
+    done = set()
+    for o in rig.children_recursive:
+        if o.type != "MESH":
+            continue
+        for slot in o.material_slots:
+            m = slot.material
+            if m is None or m.name in done or not m.use_nodes:
+                continue
+            done.add(m.name)
+            nt = m.node_tree
+            bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            if bsdf is None:
+                continue
+            tint = (0.55, 0.85, 1.0, 1.0)
+            src = bsdf.inputs["Base Color"].links[0].from_socket if bsdf.inputs["Base Color"].links else None
+            if src is not None:
+                try:  # Blender 4/5 "Mix" node in color mode; the glTF exporter reads texture x color
+                    mul = nt.nodes.new("ShaderNodeMix")
+                    mul.data_type = "RGBA"
+                    mul.blend_type = "MULTIPLY"
+                    mul.inputs[0].default_value = 1.0
+                    mul.inputs[7].default_value = tint
+                    nt.links.new(src, mul.inputs[6])
+                    nt.links.new(mul.outputs[2], bsdf.inputs["Base Color"])
+                except Exception:
+                    mul = nt.nodes.new("ShaderNodeMixRGB")
+                    mul.blend_type = "MULTIPLY"
+                    mul.inputs[0].default_value = 1.0
+                    mul.inputs[2].default_value = tint
+                    nt.links.new(src, mul.inputs[1])
+                    nt.links.new(mul.outputs[0], bsdf.inputs["Base Color"])
+            else:
+                bsdf.inputs["Base Color"].default_value = tint
+            for nm in ("Emission Color", "Emission"):
+                if nm in bsdf.inputs:
+                    bsdf.inputs[nm].default_value = (0.35, 0.75, 1.0, 1.0)
+            if "Emission Strength" in bsdf.inputs:
+                bsdf.inputs["Emission Strength"].default_value = 0.8
+            if not bsdf.inputs["Alpha"].links:
+                bsdf.inputs["Alpha"].default_value = 0.6
+            for attr, val in (("blend_method", "BLEND"), ("surface_render_method", "BLENDED")):
+                try:
+                    setattr(m, attr, val)
+                except Exception:
+                    pass
