@@ -1257,8 +1257,11 @@ def dress(rig, basemesh, model_id, look=None):
                 return 0.006 * k * float(np.clip((hips_z - p[2]) / (0.3 * Hm), 0, 1))
             return 0.0
 
+        def waist_snug(P):  # under the top's hem the bottoms hug the body, so the top always covers them
+            return sstep(top_z - 0.12 * k, top_z - 0.04 * k, P[:, 2])
+
         obj, edges = garment(bd, mask, "%s.%s" % (model_id, bt), off, bmat, rig, loose=loose, fill=fill, smooth=5,
-                             cuts=cuts)
+                             cuts=cuts, snug=(waist_snug, 0.003 * k))
         keep = np.ones(len(bd.co), bool)
         for c in cuts:
             keep &= cut_keep(bd, c)

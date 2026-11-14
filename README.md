@@ -79,6 +79,9 @@ Rebuild them with `powershell -File art/tools/run_blender.ps1`.
 - **Fights:** `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`, `--remix`.
 - **Playback:** `--auto` (the AI plays, including walking the office), `--skip-story`,
   `--speed=3`.
+- **Playtests:** `--auto-click` makes auto-play press the after-fight screens with real
+  mouse clicks, like a player. A button that can't be clicked gets the playtest stuck and
+  logs an error. `--ult-first` makes every hero's ultimate ready on the first turn.
 - **Saves and screens:** `--save-dir=user://test/` (a separate save profile),
   `--continue` (resume the saved run), `--touch` (show the joystick), and
   `--shots=<dir>` to save screenshots.

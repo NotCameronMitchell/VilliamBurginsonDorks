@@ -56,14 +56,52 @@ func _big_button(text: String, value: int) -> Button:
 	b.custom_minimum_size = Vector2(0, 56)
 	b.add_theme_font_size_override("font_size", 22)
 	b.pressed.connect(func(): _done.emit(value))
+	b.set_meta("value", value)
 	return b
 
 
 func _auto(value: int) -> void:
 	if Game.auto_play:
 		await get_tree().create_timer(1.2).timeout
-		if _panel.visible:
+		if not _panel.visible:
+			return
+		if Game.auto_click:
+			_click(value)
+		else:
 			_done.emit(value)
+
+
+## Playtests (--auto-click): press the button for `value` with a real mouse click at its
+## center, so anything covering or disabling it gets the playtest stuck like a player.
+func _click(value: int) -> void:
+	var target: Button = null
+	for b in _body.find_children("*", "Button", true, false):
+		if b.has_meta("value") and b.get_meta("value") == value and b.is_visible_in_tree():
+			target = b
+			break
+	if target == null:
+		push_error("auto-click: no button for choice %d" % value)
+		return
+	var pos := target.get_global_rect().get_center()
+	var vp := get_viewport()
+	var tree := get_tree()
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = pos
+		ev.global_position = pos
+		vp.push_input(ev, true)
+		if not is_inside_tree():  # the click worked and the screen changed
+			return
+		await tree.process_frame
+	if not is_inside_tree():
+		return
+	await tree.create_timer(2.0).timeout
+	if is_inside_tree() and _panel.visible and is_instance_valid(target) and target.is_visible_in_tree():
+		var hovered := get_viewport().gui_get_hovered_control()
+		push_error("auto-click: clicked '%s' at %s but the screen didn't move on (control under the cursor: %s)"
+			% [target.text, pos, hovered.get_path() if hovered else "none"])
 
 
 ## A message with a Continue button.
@@ -113,6 +151,7 @@ func choose(title: String, cards: Array) -> int:
 		d.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(d)
 		b.pressed.connect(func(): _done.emit(i))
+		b.set_meta("value", i)
 		row.add_child(b)
 	_auto(0)
 	var picked: int = await _done

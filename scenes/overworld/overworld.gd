@@ -30,6 +30,7 @@ var room := ""
 var _facing := Vector3(1, 0, 0)
 var _stuck_t := 0.0
 var _last_dist := INF
+var _detours := 0 ## sidesteps tried on the way to the current waypoint
 
 
 func _ready() -> void:
@@ -216,21 +217,48 @@ func _follow_path(delta: float) -> Vector3:
 		path.pop_front()
 		_stuck_t = 0.0
 		_last_dist = INF
+		_detours = 0
 		if path.is_empty():
 			_arrive()
 			return Vector3.ZERO
 		return _follow_path(delta)
-	# Blocked by a desk or a person: skip to the next waypoint.
+	# Blocked by a person or a desk: step around it (away from the nearest person), and
+	# only skip the waypoint if a few sidesteps don't get past.
 	_stuck_t = _stuck_t + delta if d >= _last_dist - 0.01 else 0.0
 	_last_dist = d
+	if _stuck_t > 0.5 and _detours < 3:
+		_stuck_t = 0.0
+		_last_dist = INF
+		_detours += 1
+		path.push_front(_sidestep(to / d))
+		return Vector3.ZERO
 	if _stuck_t > 0.8:
 		path.pop_front()
 		_stuck_t = 0.0
 		_last_dist = INF
+		_detours = 0
 		if path.is_empty():
 			_arrive()
 		return Vector3.ZERO
 	return to / d
+
+
+## A point to the side of the way ahead, on the side away from the closest person, a
+## little further out each try.
+func _sidestep(ahead: Vector3) -> Vector3:
+	var side := Vector3(-ahead.z, 0, ahead.x)
+	var me := leader.global_position
+	var closest := INF
+	var away := 1.0
+	for n in npcs:
+		var p: Vector3 = n.view.global_position if n.has("view") and is_instance_valid(n.view) else n.pos
+		var dd := me.distance_to(p)
+		if dd < closest:
+			closest = dd
+			away = -1.0 if side.dot(p - me) > 0 else 1.0
+	if _detours % 2 == 0:  # second try: the other side
+		away = -away
+	return me + side * away * (0.8 + 0.3 * _detours) + ahead * 0.5
 
 
 func _arrive() -> void:
@@ -381,6 +409,7 @@ func _walk_to(p: Vector3) -> void:
 	target_npc = {}
 	_stuck_t = 0.0
 	_last_dist = INF
+	_detours = 0
 
 
 func _go_to(n: Dictionary) -> void:

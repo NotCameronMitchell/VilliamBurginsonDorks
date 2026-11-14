@@ -161,9 +161,9 @@ def add_rot(rots, name, x=None, y=None, z=None):
 
 # =========================================================================== clips
 def idle(style):
-    if style == "boxer":
-        pose = P(LeftArm=(0, -55, -65), RightArm=(0, 55, 65), LeftForeArm=(0, -120, 0), RightForeArm=(0, 120, 0),
-                 Spine2=(8, 0, 0), LeftShin=(10, 0, 0), RightShin=(10, 0, 0), LeftLeg=(-8, 0, 0), RightLeg=(-6, 0, 0),
+    if style == "boxer":  # a loose guard: fists at chest height, not up by the face
+        pose = P(LeftArm=(0, -32, -72), RightArm=(0, 32, 72), LeftForeArm=(0, -88, 0), RightForeArm=(0, 88, 0),
+                 Spine2=(6, 0, 0), LeftShin=(10, 0, 0), RightShin=(10, 0, 0), LeftLeg=(-8, 0, 0), RightLeg=(-6, 0, 0),
                  _root=(0, -0.03, 0))
     elif style == "crossed":
         pose = P(LeftArm=(0, -55, -70), RightArm=(0, 55, 70), LeftForeArm=(0, -115, 10), RightForeArm=(0, 112, -10),
@@ -200,14 +200,44 @@ def idle(style):
 
 
 def walk():
+    """A natural walk cycle (two steps per second), keyed over several full cycles so the
+    loop cutter in hero_assemble.py always finds a real cycle (a clip that holds still at
+    the end loops "perfectly" and got picked before, giving a walk that barely moved)."""
     T = 1.0
-    a = P(LeftLeg=(-24, 0, 0), RightLeg=(18, 0, 0), LeftShin=(6, 0, 0), RightShin=(28, 0, 0),
-          LeftArm=(0, 22, -74), RightArm=(0, 22, 74), Spine2=(0, -6, 0), _root=(0, -0.01, 0))
-    b = P(LeftLeg=(-2, 0, 0), RightLeg=(-10, 0, 0), LeftShin=(10, 0, 0), RightShin=(55, 0, 0), _root=(0, 0.015, 0))
-    c = mirror(a)
-    d = mirror(b)
-    keys = [(0, a), (T * 0.25, b), (T * 0.5, c), (T * 0.75, d), (T, a)]
-    return clip(keys, T * 2)
+    # Contact: left heel strikes in front, right foot pushes off behind; opposite arm forward.
+    contact = P(LeftLeg=(-28, 0, 0), LeftShin=(4, 0, 0), LeftFoot=(-14, 0, 0),
+                RightLeg=(20, 0, 0), RightShin=(18, 0, 0), RightFoot=(22, 0, 0),
+                LeftArm=(0, 18, -76), RightArm=(0, 26, 76), LeftForeArm=(0, -12, 0), RightForeArm=(0, 30, 0),
+                Hips=(0, 6, 0), Spine2=(0, -4, 0), Chest=(0, -4, 0), Head=(0, 2, 0), _root=(0.0, -0.022, 0))
+    # Down: weight onto the front leg, knee soaks it up.
+    down = P(LeftLeg=(-18, 0, 0), LeftShin=(16, 0, 0), LeftFoot=(0, 0, 0),
+             RightLeg=(12, 0, 0), RightShin=(42, 0, 0), RightFoot=(30, 0, 0),
+             LeftArm=(0, 10, -78), RightArm=(0, 16, 78), LeftForeArm=(0, -14, 0), RightForeArm=(0, 26, 0),
+             Hips=(0, 4, 3), Spine2=(0, -2, 0), Chest=(0, -2, 0), _root=(0.012, -0.03, 0))
+    # Passing: standing on the left leg, the right swings through with the knee lifted.
+    passing = P(LeftLeg=(-2, 0, 0), LeftShin=(6, 0, 0), LeftFoot=(2, 0, 0),
+                RightLeg=(-14, 0, 0), RightShin=(62, 0, 0), RightFoot=(8, 0, 0),
+                LeftArm=(0, -2, -80), RightArm=(0, 4, 80), LeftForeArm=(0, -16, 0), RightForeArm=(0, 18, 0),
+                Hips=(0, 0, 4), _root=(0.016, 0.006, 0))
+    # Up: the right leg reaches forward, the left starts to push.
+    up = P(LeftLeg=(10, 0, 0), LeftShin=(8, 0, 0), LeftFoot=(10, 0, 0),
+           RightLeg=(-26, 0, 0), RightShin=(22, 0, 0), RightFoot=(-6, 0, 0),
+           LeftArm=(0, -10, -78), RightArm=(0, -8, 78), LeftForeArm=(0, -22, 0), RightForeArm=(0, 12, 0),
+           Hips=(0, -3, 2), Spine2=(0, 2, 0), Chest=(0, 2, 0), _root=(0.008, 0.002, 0))
+    half = [contact, down, passing, up]
+    other = [mirror(p) for p in half]
+    for p in other:  # mirror() keeps root offsets; the sway goes the other way
+        if "_root" in p:
+            x, y, z = p["_root"]
+            p["_root"] = (-x, y, z)
+    cycle = half + other
+    keys = []
+    cycles = 3
+    for c in range(cycles):
+        for i, p in enumerate(cycle):
+            keys.append((c * T + i * T / len(cycle), p))
+    keys.append((cycles * T, cycle[0]))
+    return clip(keys, cycles * T + 1.0 / FPS)
 
 
 def attack(kind):

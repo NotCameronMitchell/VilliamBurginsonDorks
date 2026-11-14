@@ -5,6 +5,8 @@ extends Node
 ##   --party=cole,cam,sam,sarah      the party for it (default: random 4)
 ##   --remix                         use the boss's remix
 ##   --auto                          the AI plays the heroes
+##   --auto-click                    ...and clicks the after-fight screens like a player
+##   --ult-first                     ultimates are ready from the first turn
 ##   --skip-story                    skip the dialogue before fights
 ##   --speed=<n>                     battle playback speed
 ##   --save-dir=<dir>                use a separate save profile (e.g. user://test/)
@@ -28,6 +30,11 @@ var settings: Dictionary
 ## A test fight from the command line: {enemies: [...], party: [...]}; empty in normal play.
 var test_fight := {}
 var auto_play := false
+## --auto-click: auto-play presses on-screen buttons with real mouse clicks, like a player
+## (so a button that can't be clicked gets the playtest stuck, as it would a person).
+var auto_click := false
+## --ult-first: ultimates are ready from the first turn (to test every hero's ultimate).
+var ult_first := false
 var skip_story := false
 var save_dir := SaveGame.DIR
 var open_menu := "" ## --menu=suitup|shop|achievements|hall opens that screen on the title
@@ -139,6 +146,8 @@ func _parse_args() -> void:
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		args[kv[0]] = kv[1] if kv.size() > 1 else "true"
 	auto_play = args.has("auto")
+	auto_click = args.has("auto-click")
+	ult_first = args.has("ult-first")
 	skip_story = args.has("skip-story")
 	open_menu = args.get("menu", "")
 	if args.has("speed"):

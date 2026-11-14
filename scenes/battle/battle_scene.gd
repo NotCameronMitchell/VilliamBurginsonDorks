@@ -74,6 +74,10 @@ func _ready() -> void:
 		b = Run.build_battle(Game.run, Game.meta)
 		Game.save()
 	_build_world(arena_id)
+	if Game.ult_first:  # test option: every hero's ultimate is ready on the first turn
+		for u in b.units:
+			if u.side == "hero" and HeroData.HEROES.has(u.key):
+				u.cd[HeroData.HEROES[u.key].ultimate] = 0
 	for u in b.units:
 		_add_unit(u)
 	_refresh_statuses()
