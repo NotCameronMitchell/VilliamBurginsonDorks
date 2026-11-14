@@ -152,12 +152,20 @@ def main():
 
 
 def export_static(obj, path):
+    """A static model (arenas, the office, props). Its generated textures go in as WebP:
+    Godot 4.7's glTF importer fails on JPEG, and WebP is far smaller than PNG."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
-    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True,
-                              export_animations=False, export_yup=True)
+    opts = dict(filepath=path, export_format="GLB", use_selection=True, export_apply=True,
+                export_animations=False, export_yup=True, export_image_format="WEBP", export_image_quality=85)
+    try:
+        bpy.ops.export_scene.gltf(**opts)
+    except TypeError:
+        for k in ("export_image_format", "export_image_quality"):
+            opts.pop(k, None)
+        bpy.ops.export_scene.gltf(**opts)
 
 
 def build_arenas(only, do_export):

@@ -11,6 +11,7 @@ var _confirm_new := false
 
 
 func _ready() -> void:
+	add_child(_pivot)  # in the tree from the start, so it's freed with the scene even when a test fight skips the menu
 	if not Game.test_fight.is_empty():
 		Game.go_battle.call_deferred()
 		return
@@ -50,7 +51,6 @@ func _build_world() -> void:
 	cam.fov = 45
 	add_child(cam)
 	_pivot.position = Vector3(-0.6, 0, 0)
-	add_child(_pivot)
 	_rebuild_heroes()
 
 

@@ -199,24 +199,42 @@ The seven battle arenas are built the same way, by `art/tools/arenas.py`: the ge
 office, the five boss areas and Villiam Burginson's.
 
 - **Output:** `assets/models/arenas/<id>.glb`, plus `art/arenas.blend` with all seven
-  side by side.
-- **Look:** each arena is one low-poly mesh: a tiled floor, a back wall with windows,
+  side by side (skip it with `--no-blend`).
+- **Look:** each arena is one low-poly mesh: a textured floor, a back wall with windows,
   and the props. Highlights:
-  - **Parking Lot:** the Trucker's semi.
-  - **Desk Pods:** cubicle pods.
-  - **Meeting Room:** the big screen and the glass wall.
-  - **Middle of the Office:** the Guardian's speaker towers and DJ table.
-  - **James's Old Desk:** his desk, golf bag and putting green.
-  - **Villiam Burginson's:** the counter, kitchen, booths and the glowing Village
-    Sauce.
+  - **The Office:** the kitchenette (NO FISH IN THE MICROWAVE), the team signs and the
+    motivational posters.
+  - **Parking Lot:** the Trucker's semi, parked next to a NO TRUCKS sign.
+  - **Desk Pods:** cubicle pods, the leaderboard, Q4 OR BUST and the sales gong.
+  - **Meeting Room:** the big screen (NOW WITH AI), the agenda and the glass wall.
+  - **Middle of the Office:** the Guardian's speaker towers and DJ table, a light-up
+    dance floor, a disco ball and the NOW PLAYING neon.
+  - **James's Old Desk:** his desk (his name still on the cubicle), golf bag, putting
+    green and a clock stopped at five.
+  - **Villiam Burginson's:** the counter, kitchen, booths, the glowing Village Sauce,
+    the menu and the name in neon.
+- **Textures** (`art/tools/textures.py`) are generated with numpy and tile seamlessly:
+  carpet tiles, asphalt, glossy diner tiles, stone, wood, cubicle fabric and grass.
+  `arenas.tex()` registers one with its tile size in meters. Anything built with
+  `tex=<key>` gets UVs from its world position, so textures line up across pieces.
+- **The view:** the windows show a generated city skyline in the arena's mood (`day`,
+  `sunset`, `night`, `pink`, `dusk`, `warm`). The parking lot's office windows
+  (`facade`) reflect it.
+- **Signs:** `Scenery.text()` builds text as geometry (Blender's built-in font), for
+  signs, posters, neon and paint on the floor. At 720p, letters need to be at least about
+  0.25 m tall to read from the battle camera.
 - **Lighting and platforms:** the battle screen adds per-arena lighting, fog, glow
   and battle platforms (`LOOKS` in `scenes/battle/arena.gd`):
   - a gradient sky (`sky`, `sky_top`)
   - a cool rim light from behind the stage (`rim`)
+  - colored light pools by the glowing props (`lights`: screens, neon, lamps)
   - a light color grade (see [STYLE.md](STYLE.md))
+  - platforms with an inset ring and a soft shadow at the base
 - **The office overworld:** `overworld` builds the whole office floor from the same
-  props, in the layout of `scenes/overworld/office_map.gd`. That script loads it and keeps
-  its own boxes as invisible collision, so the two layouts must stay in step.
+  props, in the layout of `scenes/overworld/office_map.gd`. Each room has its own floor
+  (stone hallway, wood lobby, asphalt, a carpet per department) and there's grass around
+  the building. `office_map.gd` loads it and keeps its own boxes as invisible collision,
+  so solid props must be added to both.
 - **Props:** `titan` and `subaru` are the cars for Cam's and Sarah's drive-by ultimates
   (`assets/models/props/`).
 
@@ -230,8 +248,12 @@ powershell -File art/tools/run_blender.ps1 --arenas-only --only overworld,titan,
 - **The fight:** layouts use game coordinates. Keep props out of x -6.5..6.5 for
   z > -3.5, where the platforms are.
 - **The backdrop:** the band behind the enemies (x about -3..7, z -4..-11) is what
-  shows best.
-- **The edges:** far left and right are mostly covered by the name plates.
+  shows best. Things higher than about 2.3 m at the back wall go under the top bar.
+- **The HUD:** the enemies' health list covers the top left (it grows about 55 px per
+  enemy, so three enemies cover x < 325, y < 195 of 1280x720). The party list covers
+  the right side from y 150 to 390, and the text box covers the bottom.
+- **Checking a spot:** `python art/tools/battle_view.py x y z [w h enemies]` prints
+  where a point or a sign lands on the battle screen and what covers it.
 - **Replacing an arena:** export a hand-made `.glb` over the generated one.
 
 ## Folders

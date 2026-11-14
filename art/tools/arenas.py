@@ -20,10 +20,70 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 import chibi
+import textures as T
 
 ARENA_IDS = ["office", "parking_lot", "desk_pods", "meeting_room", "office_center", "james_desk", "villiam_burginson"]
 
 _glass = {}
+
+# Generated textures (textures.py), by key: make() -> image, tile = how many meters one
+# copy covers (u, v), origin = where v starts on walls (meters up), plus roughness and glow.
+TEX = {}
+_tex_mats = {}
+
+
+def tex(key, make, tile, rough=0.9, emit=0.0, origin=(0.0, 0.0)):
+    """Registers a texture (once) and returns its key, for Scenery's tex= argument."""
+    if key not in TEX:
+        TEX[key] = dict(make=make, tile=tile, rough=rough, emit=emit, origin=origin)
+    return key
+
+
+def carpet(base, accent=None, seed=1):
+    return tex("carpet_%s_%s" % (base.strip("#"), (accent or "").strip("#")), lambda: T.carpet(base, accent, seed=seed), (1.0, 1.0), rough=1.0)
+
+
+def fabric(color):
+    return tex("fabric_" + color.strip("#"), lambda: T.fabric(color), (0.6, 0.6), rough=1.0)
+
+
+def view(mood):
+    """The city through the windows (window_wall's glass), glowing a little."""
+    make = T.facade if mood == "facade" else (lambda: T.skyline(mood))
+    return tex("view_" + mood, make, (16.0, 1.9), rough=0.2, emit=0.9, origin=(0.0, 0.9))
+
+
+def wood(kind="light"):
+    if kind == "dark":
+        return tex("wood_dark", lambda: T.wood("#7a5444", "#553a2e", seed=6), (1.6, 1.6), rough=0.5)
+    if kind == "floor":
+        return tex("wood_floor", lambda: T.wood("#b88f5f", "#8f6844", seed=7), (2.4, 2.4), rough=0.6)
+    return tex("wood_light", lambda: T.wood("#dcc59f", "#c4a67c", seed=5), (1.6, 1.6), rough=0.55)
+
+
+def tex_material(key):
+    if key in _tex_mats:
+        return _tex_mats[key]
+    t = TEX[key]
+    im = T.image(key, t["make"]())
+    m = bpy.data.materials.new("tex_" + key)
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes.get("Principled BSDF")
+    node = nt.nodes.new("ShaderNodeTexImage")
+    node.image = im
+    nt.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = t["rough"]
+    if t["emit"] > 0:
+        for nm in ("Emission Color", "Emission"):
+            if nm in bsdf.inputs:
+                nt.links.new(node.outputs["Color"], bsdf.inputs[nm])
+                break
+        if "Emission Strength" in bsdf.inputs:
+            bsdf.inputs["Emission Strength"].default_value = t["emit"]
+    m["vbd_tex"] = key
+    _tex_mats[key] = m
+    return m
 
 
 def glass_material(color, alpha=0.35):
@@ -54,8 +114,12 @@ class Scenery:
         self.bm = bmesh.new()
         self.mats = []
 
-    def mat(self, color, emit=0.0, metal=0.0, glass=False):
-        m = glass_material(color) if glass else chibi.material(color, False, emit, metal)
+    def mat(self, color, emit=0.0, metal=0.0, glass=False, tex=None):
+        """A material index: a flat color, glass, or (tex=key) a generated texture."""
+        if tex:
+            m = tex_material(tex)
+        else:
+            m = glass_material(color) if glass else chibi.material(color, False, emit, metal)
         if m not in self.mats:
             self.mats.append(m)
         return self.mats.index(m)
@@ -125,7 +189,71 @@ class Scenery:
         """A flat marking on the floor (lines, rugs, stains)."""
         return self.box((x, y, z), (w, 0.012, d), color, yaw=yaw, **kw)
 
+    def tex_floor(self, x0, z0, x1, z1, key, step=2.0, y=0.0):
+        """A floor of one generated texture (its UVs come from world position)."""
+        idx = self.mat(None, tex=key)
+        nx, nz = max(1, round((x1 - x0) / step)), max(1, round((z1 - z0) / step))
+        grid = {}
+        for i in range(nx + 1):
+            for j in range(nz + 1):
+                grid[i, j] = self.bm.verts.new((x0 + (x1 - x0) * i / nx, -(z0 + (z1 - z0) * j / nz), y))
+        for i in range(nx):
+            for j in range(nz):
+                f = self.bm.faces.new((grid[i, j], grid[i, j + 1], grid[i + 1, j + 1], grid[i + 1, j]))
+                f.material_index = idx
+
+    def text(self, body, pos, size, color, yaw=0.0, pitch=0.0, emit=0.0, depth=0.0, flat=False, align="CENTER"):
+        """Text as geometry. Standing (the default) it faces +z at yaw 0 and pos is the middle
+        of its baseline; flat, it lies on the floor reading toward the camera."""
+        cu = bpy.data.curves.new("vbd_text", type="FONT")
+        cu.body = body
+        cu.size = size
+        cu.align_x = align
+        cu.extrude = depth
+        ob = bpy.data.objects.new("vbd_text", cu)
+        bpy.context.scene.collection.objects.link(ob)
+        me = bpy.data.meshes.new_from_object(ob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+        bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.curves.remove(cu)
+        x, y, z = pos
+        rot = Matrix.Rotation(math.radians(yaw), 4, "Z")
+        if not flat:
+            rot = rot @ Matrix.Rotation(math.radians(90 + pitch), 4, "X")
+        me.transform(Matrix.Translation((x, -z, y)) @ rot)
+        n = len(self.bm.faces)
+        self.bm.from_mesh(me)
+        bpy.data.meshes.remove(me)
+        idx = self.mat(color, emit=emit)
+        self.bm.faces.ensure_lookup_table()
+        for f in self.bm.faces[n:]:
+            f.material_index = idx
+
     def to_object(self, name):
+        # Textured faces get UVs from their world position: floors by x and depth, walls
+        # by their run and height (the texture's tile size says how many meters one copy
+        # covers).
+        self.bm.normal_update()
+        uv = self.bm.loops.layers.uv.verify()
+        info = {}
+        for i, m in enumerate(self.mats):
+            key = m.get("vbd_tex") if hasattr(m, "get") else None
+            if key:
+                info[i] = (TEX[key]["tile"], TEX[key]["origin"])
+        for f in self.bm.faces:
+            t = info.get(f.material_index)
+            if not t:
+                continue
+            (tu, tv), (u0, v0) = t
+            n = f.normal
+            ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+            for lp in f.loops:
+                co = lp.vert.co
+                if az >= ax and az >= ay:
+                    lp[uv].uv = (co.x / tu, co.y / tv)
+                elif ay >= ax:
+                    lp[uv].uv = ((co.x - u0) / tu, (co.z - v0) / tv)
+                else:
+                    lp[uv].uv = ((co.y - u0) / tu, (co.z - v0) / tv)
         mesh = bpy.data.meshes.new(name)
         self.bm.to_mesh(mesh)
         self.bm.free()
@@ -147,8 +275,9 @@ def _rot(x, z, dx, dz, yaw):
 
 
 def desk(S, x, z, yaw=0.0, top="#d7c4a3", body="#8d8a84", screen="#7fd4ff", monitor=True, clutter=True, screen_on=True):
-    """An office desk; the monitor sits at the back facing the front."""
-    S.box((x, 0.72, z), (1.6, 0.05, 0.8), top, yaw=yaw, bevel=0.01)
+    """An office desk; the monitor sits at the back facing the front. The default top is
+    light wood laminate."""
+    S.box((x, 0.72, z), (1.6, 0.05, 0.8), top, yaw=yaw, bevel=0.01, tex=wood("light") if top == "#d7c4a3" else None)
     for dx in (-0.74, 0.74):
         px, pz = _rot(x, z, dx, 0, yaw)
         S.box((px, 0, pz), (0.06, 0.72, 0.74), body, yaw=yaw)
@@ -182,8 +311,25 @@ def office_chair(S, x, z, yaw=0.0, color="#2d3436"):
 
 
 def partition(S, x, z, length, yaw=0.0, h=1.3, color="#95a5a6", trim="#7f8c8d"):
-    S.box((x, 0, z), (length, h, 0.07), color, yaw=yaw)
+    """A cubicle wall: woven fabric with a metal trim on top."""
+    S.box((x, 0, z), (length, h, 0.07), color, yaw=yaw, tex=fabric(color))
     S.box((x, h, z), (length + 0.04, 0.04, 0.09), trim, yaw=yaw)
+
+
+def hanging_sign(S, x, y, z, text, w=1.8, h=0.5, bg="#2d3436", fg="#ffffff", emit=0.0, yaw=0.0, frame=None):
+    """A sign hung from the ceiling on two wires (its bottom edge at y)."""
+    for dx in (-w / 2 + 0.12, w / 2 - 0.12):
+        px, pz = _rot(x, z, dx, 0, yaw)
+        S.box((px, y + h, pz), (0.012, 2.5, 0.012), "#3d3d3d", yaw=yaw)
+    sign(S, x, y, z, text, w=w, h=h, bg=bg, fg=fg, yaw=yaw, emit=emit, frame=frame)
+
+
+def column(S, x, z, h=3.4, w=0.5, color="#d9d4ca", clock=False, hour=10, minute=10, clock_y=2.0):
+    """A square structural column (with a wall clock on its front, if asked)."""
+    S.box((x, 0, z), (w, h, w), color)
+    S.box((x, 0, z), (w + 0.04, 0.12, w + 0.04), "#8d8a84")
+    if clock:
+        wall_clock(S, x, clock_y, z + w / 2, r=0.22, hour=hour, minute=minute)
 
 
 def poster(S, x, y, z, yaw=0.0, w=0.6, h=0.8, colors=("#ff7675", "#ffeaa7", "#74b9ff")):
@@ -265,6 +411,10 @@ def whiteboard(S, x, z, yaw=0.0, w=2.0, scribbles="chart"):
         for i, hh in enumerate(heights):
             bx, bz = _rot(x, z, -w * 0.35 + i * (w * 0.16), 0.032, yaw)
             S.box((bx, 0.88, bz), (w * 0.1, hh, 0.01), "#e74c3c" if i == 4 else "#0984e3", yaw=yaw)
+    elif isinstance(scribbles, (list, tuple)):  # lines of marker writing
+        for i, (line, c) in enumerate(scribbles):
+            lx, lz = _rot(x, z, -w / 2 + 0.12, 0.034, yaw)
+            S.text(line, (lx, 1.58 - i * 0.2, lz), 0.15 if i == 0 else 0.12, c, yaw=yaw, align="LEFT")
     else:
         for i in range(5):
             lx, lz = _rot(x, z, -w * 0.3 + (i % 2) * 0.1, 0.032, yaw)
@@ -298,7 +448,7 @@ def coffee_table(S, x, z, yaw=0.0, w=1.1, d=0.6, color="#a1785c"):
 
 def bookshelf(S, x, z, yaw=0.0, w=1.2, h=1.8, seed=1):
     rnd = random.Random(seed)
-    S.box((x, 0, z), (w, h, 0.36), "#8d6e63", yaw=yaw)
+    S.box((x, 0, z), (w, h, 0.36), "#8d6e63", yaw=yaw, tex=wood("dark"))
     for i in range(4):
         y = 0.08 + i * (h - 0.1) / 4
         fx, fz = _rot(x, z, 0, 0.02, yaw)
@@ -364,7 +514,7 @@ def bean_bag(S, x, z, color="#e84393"):
 
 
 def meeting_table(S, x, z, length=5.0, width=1.6, yaw=0.0, color="#5d4037"):
-    S.box((x, 0.72, z), (length, 0.06, width), color, yaw=yaw, bevel=0.02)
+    S.box((x, 0.72, z), (length, 0.06, width), color, yaw=yaw, bevel=0.02, tex=wood("dark"))
     for dx in (-length / 3, length / 3):
         px, pz = _rot(x, z, dx, 0, yaw)
         S.box((px, 0, pz), (0.5, 0.72, 0.5), "#3e2723", yaw=yaw)
@@ -378,7 +528,7 @@ def laptop(S, x, y, z, yaw=0.0, screen="#7fd4ff"):
     S.box((sx, y + 0.03, sz), (0.3, 0.17, 0.006), screen, yaw=yaw, pitch=-12, emit=1.8)
 
 
-def tv_stand(S, x, z, yaw=0.0, w=3.2, h=1.8, screen="#2e86de"):
+def tv_stand(S, x, z, yaw=0.0, w=3.2, h=1.8, screen="#2e86de", caption=None):
     for dx in (-0.5, 0.5):
         px, pz = _rot(x, z, dx, 0, yaw)
         S.box((px, 0, pz), (0.08, 1.2, 0.08), "#2d3436", yaw=yaw)
@@ -386,14 +536,19 @@ def tv_stand(S, x, z, yaw=0.0, w=3.2, h=1.8, screen="#2e86de"):
     S.box((x, 0.9, z), (w, h, 0.08), "#111111", yaw=yaw, bevel=0.01)
     fx, fz = _rot(x, z, 0, 0.045, yaw)
     S.box((fx, 0.96, fz), (w - 0.14, h - 0.12, 0.01), screen, yaw=yaw, emit=1.4)
-    # A chart on the screen
+    # A chart on the screen (above the caption, if there is one: the bottom of the screen
+    # is what the battle camera sees best)
+    y0, k = (1.42, 0.62) if caption else (1.1, 1.0)
     for i, hh in enumerate([0.3, 0.5, 0.42, 0.75, 0.95]):
         bx, bz = _rot(x, z, -w * 0.32 + i * w * 0.15, 0.052, yaw)
-        S.box((bx, 1.1, bz), (w * 0.08, hh, 0.006), "#ffffff", yaw=yaw, emit=1.5)
+        S.box((bx, y0, bz), (w * 0.08, hh * k, 0.006), "#ffffff", yaw=yaw, emit=1.5)
+    if caption:
+        tx, tz = _rot(x, z, 0, 0.055, yaw)
+        S.text(caption, (tx, 1.1, tz), 0.28, "#ffffff", yaw=yaw, emit=2.5)
 
 
 def credenza(S, x, z, yaw=0.0, w=2.0):
-    S.box((x, 0, z), (w, 0.8, 0.5), "#6d4c41", yaw=yaw, bevel=0.02)
+    S.box((x, 0, z), (w, 0.8, 0.5), "#6d4c41", yaw=yaw, bevel=0.02, tex=wood("dark"))
     for dx in (-w / 4, w / 4):
         fx, fz = _rot(x, z, dx, 0.255, yaw)
         S.box((fx, 0.1, fz), (w / 2 - 0.1, 0.6, 0.01), "#795548", yaw=yaw)
@@ -648,18 +803,26 @@ def trash_can(S, x, z, color="#2c3e50"):
     S.box((x, 0.9, z + 0.2), (0.3, 0.04, 0.02), "#ffd23f")
 
 
-def a_frame_sign(S, x, z, yaw=0.0):
-    """A chalkboard menu sign on the floor."""
-    S.box((x, 0, z), (0.7, 1.05, 0.04), "#8d6e63", yaw=yaw, pitch=12)
+def a_frame_sign(S, x, z, yaw=0.0, text=None):
+    """A chalkboard sign on the floor (with chalk lines, or lines of text)."""
+    S.box((x, 0, z), (0.7, 1.05, 0.04), "#8d6e63", yaw=yaw, pitch=-12)
     fx, fz = _rot(x, z, 0, 0.03, yaw)
-    S.box((fx, 0.08, fz), (0.6, 0.85, 0.01), "#2d3436", yaw=yaw, pitch=12)
+    S.box((fx, 0.08, fz), (0.6, 0.85, 0.01), "#2d3436", yaw=yaw, pitch=-12)
+    if text:
+        rows = text.split("\n")
+        for i, row in enumerate(rows):
+            lx, lz = _rot(x, z, 0, 0.038 - (0.66 - i * 0.17 - 0.505) * math.tan(math.radians(12)), yaw)
+            S.text(row, (lx, 0.66 - i * 0.17, lz), min(0.11, 0.5 / (0.62 * max(len(r) for r in rows))),
+                   ["#ffd23f", "#ffffff", "#ff7a1a", "#ffffff"][i % 4], yaw=yaw, pitch=-12)
+        return
     for i, c in enumerate(["#ffd23f", "#ffffff", "#ffffff", "#ff7a1a"]):
         lx, lz = _rot(x, z, 0, 0.04 - i * 0.022, yaw)
-        S.box((lx, 0.75 - i * 0.16, lz), (0.42 - (i % 2) * 0.1, 0.035, 0.01), c, yaw=yaw, pitch=12)
+        S.box((lx, 0.75 - i * 0.16, lz), (0.42 - (i % 2) * 0.1, 0.035, 0.01), c, yaw=yaw, pitch=-12)
 
 
-def window_wall(S, z, x0, x1, h=3.2, sill=0.9, win_h=1.9, color="#d9d4ca", sky="#bfe6ff", every=2.2):
-    """A back wall with a row of windows (glowing sky)."""
+def window_wall(S, z, x0, x1, h=3.2, sill=0.9, win_h=1.9, color="#d9d4ca", sky="#bfe6ff", every=2.2, mood=None):
+    """A back wall with a row of windows: the city outside (mood: textures.SKYLINES, or
+    "facade" for the office's own windows from outside), or just a glowing sky color."""
     S.box(((x0 + x1) / 2, 0, z), (x1 - x0, sill, 0.25), color)
     S.box(((x0 + x1) / 2, sill + win_h, z), (x1 - x0, h - sill - win_h, 0.25), color)
     S.box(((x0 + x1) / 2, 0, z + 0.13), (x1 - x0, 0.12, 0.02), "#6f6a62")
@@ -667,8 +830,204 @@ def window_wall(S, z, x0, x1, h=3.2, sill=0.9, win_h=1.9, color="#d9d4ca", sky="
     for i in range(n + 1):
         x = x0 + i * (x1 - x0) / n
         S.box((x, sill, z), (0.14, win_h, 0.27), color)
-    S.box(((x0 + x1) / 2, sill, z - 0.02), (x1 - x0, win_h, 0.04), sky, emit=0.8)
+    if mood:
+        S.box(((x0 + x1) / 2, sill, z - 0.02), (x1 - x0, win_h, 0.04), sky, tex=view(mood))
+    else:
+        S.box(((x0 + x1) / 2, sill, z - 0.02), (x1 - x0, win_h, 0.04), sky, emit=0.8)
     S.box(((x0 + x1) / 2, sill - 0.02, z + 0.14), (x1 - x0, 0.04, 0.12), "#ecf0f1")
+
+
+# --------------------------------------------------------------------- signs and set dressing
+def sign(S, x, y, z, text, w=1.2, h=0.4, bg="#2d3436", fg="#ffffff", yaw=0.0, emit=0.0, frame=None, size=None):
+    """A flat sign facing +z, its bottom edge at y: a panel with centered lines of text."""
+    S.box((x, y, z), (w, h, 0.03), frame or bg, yaw=yaw)
+    if frame:
+        fx, fz = _rot(x, z, 0, 0.016, yaw)
+        S.box((fx, y + 0.03, fz), (w - 0.06, h - 0.06, 0.005), bg, yaw=yaw)
+    rows = text.split("\n")
+    s = size or min(h * 0.7 / (len(rows) * 1.05), (w - 0.08) / (0.62 * max(len(r) for r in rows)))
+    cap = 0.72 * s
+    first = y + h / 2 + (cap + (len(rows) - 1) * 1.2 * s) / 2 - cap
+    tx, tz = _rot(x, z, 0, 0.024, yaw)
+    for i, row in enumerate(rows):
+        S.text(row, (tx, first - i * 1.2 * s, tz), s, fg, yaw=yaw, emit=emit)
+
+
+def motivational_poster(S, x, y, z, word, sub="", yaw=0.0, sky="#2e86de", sun="#f6e58d", ground="#1e3799"):
+    """The classic office poster: a black border, a picture, and one big word."""
+    w, h = 0.78, 1.04
+    S.box((x, y, z), (w, h, 0.025), "#111111", yaw=yaw)
+    fx, fz = _rot(x, z, 0, 0.014, yaw)
+    S.box((fx, y + 0.3, fz), (w - 0.12, h - 0.4, 0.004), sky, yaw=yaw)
+    gx, gz = _rot(x, z, 0, 0.018, yaw)
+    S.box((gx, y + 0.3, gz), (w - 0.12, 0.13, 0.004), ground, yaw=yaw)
+    sx, sz = _rot(x, z, 0.12, 0.02, yaw)
+    S.cyl((sx, y + 0.66, sz), 0.07, 0.004, sun, segs=16, axis="z", yaw=yaw)
+    tx, tz = _rot(x, z, 0, 0.02, yaw)
+    S.text(word, (tx, y + 0.14, tz), min(0.1, 0.6 / max(1, len(word)) * 1.4), "#ffffff", yaw=yaw)
+    if sub:
+        S.text(sub, (tx, y + 0.06, tz), min(0.032, 0.62 / max(1, len(sub)) * 1.5), "#b2bec3", yaw=yaw)
+
+
+def incident_board(S, x, y, z, days="0", what="A REPLY-ALL", yaw=0.0):
+    """DAYS WITHOUT <what>: <days>."""
+    S.box((x, y, z), (1.15, 0.78, 0.03), "#ecf0f1", yaw=yaw)
+    fx, fz = _rot(x, z, 0, 0.016, yaw)
+    S.box((fx, y + 0.6, fz), (1.15, 0.18, 0.005), "#27ae60", yaw=yaw)
+    tx, tz = _rot(x, z, 0, 0.022, yaw)
+    S.text("DAYS WITHOUT", (tx, y + 0.645, tz), 0.09, "#ffffff", yaw=yaw)
+    S.text(days, (tx, y + 0.2, tz), 0.42, "#c0392b", yaw=yaw)
+    S.text(what, (tx, y + 0.07, tz), min(0.075, 1.0 / max(1, len(what)) * 1.5), "#2d3436", yaw=yaw)
+
+
+def wall_clock(S, x, y, z, r=0.24, hour=10, minute=10):
+    """A round wall clock facing +z, centered at height y."""
+    S.cyl((x, y, z), r, 0.05, "#2d3436", segs=24, axis="z")
+    S.cyl((x, y, z + 0.026), r * 0.88, 0.01, "#fdfdfd", segs=24, axis="z")
+    for a, length, wd in ((hour * 30 + minute * 0.5, r * 0.5, 0.024), (minute * 6, r * 0.75, 0.016)):
+        c = (x + math.sin(math.radians(a)) * length / 2, y + math.cos(math.radians(a)) * length / 2)
+        S.box((c[0], c[1] - length / 2, z + 0.035), (wd, length, 0.006), "#2d3436", roll=a)
+    for i in range(12):
+        a = math.radians(i * 30)
+        S.box((x + math.sin(a) * r * 0.76, y + math.cos(a) * r * 0.76 - 0.015, z + 0.033), (0.012, 0.03, 0.004), "#2d3436", roll=i * 30)
+
+
+def exit_sign(S, x, y, z, yaw=0.0):
+    S.box((x, y, z), (0.56, 0.22, 0.07), "#ecf0f1", yaw=yaw)
+    fx, fz = _rot(x, z, 0, 0.036, yaw)
+    S.box((fx, y + 0.02, fz), (0.5, 0.18, 0.005), "#1e8449", yaw=yaw, emit=1.2)
+    tx, tz = _rot(x, z, 0, 0.042, yaw)
+    S.text("EXIT", (tx, y + 0.055, tz), 0.15, "#ffffff", yaw=yaw, emit=2.5)
+
+
+def fire_extinguisher(S, x, z, yaw=0.0):
+    S.cyl((x, 0, z), 0.085, 0.48, "#c0392b", segs=12)
+    S.cyl((x, 0.48, z), 0.03, 0.07, "#2d3436", segs=8)
+    hx, hz = _rot(x, z, 0.05, 0, yaw)
+    S.box((hx, 0.53, hz), (0.13, 0.02, 0.03), "#2d3436", yaw=yaw)
+    nx, nz = _rot(x, z, -0.07, 0.02, yaw)
+    S.box((nx, 0.18, nz), (0.025, 0.32, 0.025), "#2d3436", yaw=yaw)
+
+
+def wet_floor_sign(S, x, z, yaw=0.0):
+    """A yellow CAUTION A-frame."""
+    for s in (-1, 1):
+        fx, fz = _rot(x, z, 0, s * 0.09, yaw)
+        S.box((fx, 0, fz), (0.34, 0.66, 0.02), "#f1c40f", yaw=yaw, pitch=-s * 12)
+    for word, y, s in (("CAUTION", 0.46, 0.065), ("WET FLOOR", 0.36, 0.05)):
+        tx, tz = _rot(x, z, 0, 0.104 - (y - 0.33) * math.tan(math.radians(12)), yaw)
+        S.text(word, (tx, y, tz), s, "#2d3436", yaw=yaw, pitch=-12)
+
+
+def recycle_bin(S, x, z, color="#2e86de"):
+    S.box((x, 0, z), (0.42, 0.7, 0.42), color, bevel=0.02)
+    S.box((x, 0.7, z), (0.45, 0.04, 0.45), "#1b4f72")
+    S.box((x, 0.72, z), (0.24, 0.012, 0.06), "#0b0b0b")
+
+
+def bulletin_board(S, x, y, z, yaw=0.0, w=1.3, h=0.85, seed=1):
+    """A cork board with pinned notes."""
+    rnd = random.Random(seed)
+    S.box((x, y, z), (w, h, 0.03), "#8d6e63", yaw=yaw)
+    fx, fz = _rot(x, z, 0, 0.016, yaw)
+    S.box((fx, y + 0.04, fz), (w - 0.08, h - 0.08, 0.005), "#c8a165", yaw=yaw)
+    for i in range(7):
+        dx, dy = rnd.uniform(-w / 2 + 0.15, w / 2 - 0.15), rnd.uniform(0.12, h - 0.25)
+        px, pz = _rot(x, z, dx, 0.022, yaw)
+        S.box((px, y + dy, pz), (rnd.uniform(0.13, 0.22), rnd.uniform(0.12, 0.2), 0.003),
+              rnd.choice(["#ffeaa7", "#fdfdfd", "#a3f7bf", "#fab1a0", "#74b9ff"]), yaw=yaw, roll=rnd.uniform(-8, 8))
+
+
+def gong(S, x, z, yaw=0.0):
+    """The sales floor's gong (ring it when you close a deal)."""
+    for dx in (-0.55, 0.55):
+        px, pz = _rot(x, z, dx, 0, yaw)
+        S.box((px, 0, pz), (0.08, 1.7, 0.08), "#5d4037", yaw=yaw, tex=wood("dark"))
+        S.box((px, 0, pz), (0.12, 0.05, 0.5), "#3e2723", yaw=yaw)
+    S.box((x, 1.7, z), (1.3, 0.1, 0.1), "#5d4037", yaw=yaw, tex=wood("dark"))
+    S.cyl((x, 1.0, z), 0.42, 0.035, "#d4a937", segs=24, axis="z", yaw=yaw, metal=0.8)
+    S.cyl((x, 1.0, z + 0.02), 0.14, 0.02, "#b8860b", segs=16, axis="z", yaw=yaw, metal=0.8)
+    S.box((x - 0.2, 1.42, z), (0.01, 0.28, 0.01), "#2d3436")
+    S.box((x + 0.2, 1.42, z), (0.01, 0.28, 0.01), "#2d3436")
+
+
+def disco_ball(S, x, y, z, r=0.32):
+    S.box((x, y + r, z), (0.012, 1.4, 0.012), "#2d3436")
+    S.sph((x, y, z), (r, r, r), "#dfe6e9", segs=14, smooth=False, metal=0.9, emit=0.6)
+
+
+def hydrant(S, x, z):
+    S.cyl((x, 0, z), 0.13, 0.08, "#a93226", segs=12)
+    S.cyl((x, 0.08, z), 0.1, 0.5, "#e74c3c", segs=12)
+    S.sph((x, 0.6, z), (0.11, 0.1, 0.11), "#e74c3c", segs=10)
+    S.cyl((x, 0.4, z), 0.045, 0.32, "#c0392b", segs=8, axis="x")
+    S.cyl((x, 0.4, z), 0.05, 0.14, "#c0392b", segs=8, axis="z")
+
+
+def bike_rack(S, x, z, n=4, yaw=0.0):
+    for i in range(n):
+        px, pz = _rot(x, z, (i - (n - 1) / 2) * 0.5, 0, yaw)
+        for dx in (-0.16, 0.16):
+            lx, lz = _rot(px, pz, dx, 0, yaw)
+            S.cyl((lx, 0, lz), 0.025, 0.7, "#95a5a6", segs=6, metal=0.7)
+        S.box((px, 0.7, pz), (0.36, 0.05, 0.05), "#95a5a6", yaw=yaw, metal=0.7)
+
+
+def parking_sign(S, x, z, text, yaw=0.0):
+    """A small sign on a post: RESERVED and friends."""
+    S.cyl((x, 0, z), 0.035, 1.75, "#7f8c8d", segs=6)
+    sign(S, x, 1.05, z + 0.04, text, w=0.9, h=0.7, bg="#ffffff", fg="#1e3799", yaw=yaw, frame="#1e3799")
+
+
+def speed_bump(S, x, z, length=4.0, yaw=0.0):
+    S.box((x, 0, z), (length, 0.08, 0.4), "#f1c40f", yaw=yaw, bevel=0.03)
+    for i in range(int(length / 0.5)):
+        px, pz = _rot(x, z, -length / 2 + 0.25 + i * 0.5, 0, yaw)
+        if i % 2:
+            S.box((px, 0.081, pz), (0.5, 0.004, 0.38), "#2d3436", yaw=yaw)
+
+
+def floor_text(S, text, x, z, size, color="#f5f5f0", yaw=0.0):
+    """Painted on the floor (STOP, SLOW...), reading toward the camera."""
+    S.text(text, (x, 0.008, z), size, color, yaw=yaw, flat=True)
+
+
+def kitchenette(S, x, z, length=2.4, yaw=0.0):
+    """Base cabinets, a counter, a microwave (and the sign about fish), a coffee maker."""
+    S.box((x, 0, z), (length, 0.86, 0.6), "#ecf0f1", yaw=yaw)
+    S.box((x, 0.86, z), (length + 0.04, 0.04, 0.64), "#7f8c8d", yaw=yaw)
+    for i in range(int(length / 0.6)):
+        dx = -length / 2 + 0.3 + i * 0.6
+        fx, fz = _rot(x, z, dx, 0.305, yaw)
+        S.box((fx, 0.08, fz), (0.54, 0.7, 0.01), "#dfe6e9", yaw=yaw)
+        hx, hz = _rot(x, z, dx + 0.18, 0.315, yaw)
+        S.box((hx, 0.66, hz), (0.1, 0.02, 0.02), "#95a5a6", yaw=yaw)
+    mx, mz = _rot(x, z, -length / 4, 0, yaw)
+    S.box((mx, 0.9, mz), (0.52, 0.3, 0.38), "#2d3436", yaw=yaw, bevel=0.01)
+    wx, wz = _rot(x, z, -length / 4 - 0.06, 0.195, yaw)
+    S.box((wx, 0.95, wz), (0.32, 0.2, 0.005), "#111111", yaw=yaw)
+    cx, cz = _rot(x, z, -length / 4 + 0.19, 0.195, yaw)
+    S.box((cx, 1.1, cz), (0.08, 0.03, 0.005), "#2ecc71", yaw=yaw, emit=2.0)
+    kx, kz = _rot(x, z, length / 4, 0, yaw)
+    S.box((kx, 0.9, kz), (0.26, 0.36, 0.28), "#1e1e24", yaw=yaw)
+    S.cyl((kx, 0.92, kz + 0.04), 0.07, 0.14, "#5d4037", segs=10, glass=True)
+    bx, bz = _rot(x, z, 0, -0.32, yaw)
+    S.box((bx, 0.9, bz), (length + 0.04, 1.0, 0.04), "#dfe6e9", yaw=yaw)  # the backsplash
+    sx, sz = _rot(x, z, 0, -0.29, yaw)
+    sign(S, sx, 1.24, sz, "NO FISH IN\nTHE MICROWAVE", w=1.5, h=0.6, bg="#fdfdfd", fg="#c0392b", yaw=yaw, frame="#c0392b")
+
+
+def menu_board(S, x, y, z, yaw=0.0, w=3.0, h=1.0, items=()):
+    """A glowing menu board: dark panel, the items in two columns."""
+    S.box((x, y, z), (w, h, 0.06), "#1a1a22", yaw=yaw)
+    tx, tz = _rot(x, z, 0, 0.035, yaw)
+    S.text("MENU", (tx, y + h - 0.2, tz), 0.15, "#ffd23f", yaw=yaw, emit=3.0)
+    for i, (name, price) in enumerate(items):
+        col, row = i % 2, i // 2
+        nx, nz = _rot(x, z, -w / 2 + 0.15 + col * w / 2, 0.035, yaw)
+        S.text(name, (nx, y + h - 0.38 - row * 0.17, nz), 0.085, "#ffffff", yaw=yaw, emit=2.0, align="LEFT")
+        px, pz = _rot(x, z, -0.12 + col * w / 2, 0.035, yaw)
+        S.text(price, (px, y + h - 0.38 - row * 0.17, pz), 0.085, "#ff7a1a", yaw=yaw, emit=2.5, align="RIGHT")
 
 
 def low_wall(S, z, x0, x1, h=1.1, color="#d9d4ca", trim="#6f6a62"):
@@ -702,40 +1061,58 @@ def papers(S, x, z, n=5, seed=3):
 # ===================================================================== arenas
 def build_office(S):
     """Generic office floor (the minion fights)."""
-    S.floor(-18, -16, 18, 12, 1.0, "#5b6c86", "#52627b")
-    window_wall(S, -10.5, -16, 16)
-    # Back row of desks with people's chairs, cubicle walls behind.
-    for x in (-7.2, -4.8, -2.4, 0.0, 2.4, 4.8, 7.2, 9.6):
+    S.tex_floor(-18, -16, 18, 12, carpet("#56667f", "#9fb0cc", 1))
+    window_wall(S, -10.5, -16, 16, mood="day")
+    # Back row of desks with people's chairs, the kitchenette (and its sign about fish)
+    # among them, cubicle walls behind. Signs stay where the HUD doesn't cover them.
+    for x in (-7.2, -4.8, 0.0, 2.4, 4.8, 7.2, 9.6):
         desk(S, x, -6.6, screen=["#7fd4ff", "#a3f7bf", "#ffeaa7"][int(x) % 3])
         office_chair(S, x + 0.1, -5.7, yaw=180 + (x * 7) % 25)
+    kitchenette(S, -2.4, -6.75)
     partition(S, 1.2, -7.25, 19.6)
-    for x in (-6.0, -1.2, 3.6, 8.4):
-        poster(S, x, 0.55, -7.2, colors=["#74b9ff", "#ffffff", "#ff7675"])
-    # A second row further back (just their monitors peeking over).
+    for x, word, sub, sky in ((-6.0, "SYNERGY", "WE'RE ALL IN THIS MEETING", "#2e86de"),
+                              (1.2, "CIRCLE BACK", "UNTIL WE'RE DIZZY", "#e17055"),
+                              (3.6, "BANDWIDTH", "WE HAVE NONE", "#00b894"),
+                              (6.0, "OWNERSHIP", "OF OTHER PEOPLE'S TASKS", "#6c5ce7")):
+        motivational_poster(S, x, 0.24, -7.2, word, sub, sky=sky)
+    # A second row further back (just their monitors peeking over), under the team signs.
     for x in (-6.0, -3.0, 0.0, 3.0, 6.0, 9.0):
         desk(S, x, -8.9, clutter=False)
-    # Left side
-    whiteboard(S, -8.6, -4.0, yaw=35, scribbles="notes")
-    filing_cabinet(S, -10.6, -6.3, yaw=60)
-    filing_cabinet(S, -10.9, -5.5, yaw=60, drawers=4)
-    plant(S, -9.6, 1.4, 1.2)
-    tall_plant(S, -10.4, -2.0)
+    hanging_sign(S, -1.9, 1.62, -8.3, "CUSTOMER SUCCESS", w=2.6, h=0.42, bg="#1e3799")
+    hanging_sign(S, 3.4, 1.62, -8.3, "REPLY-ALL DEPT.", w=2.4, h=0.42, bg="#c0392b")
+    column(S, 5.6, -9.6, clock=True, hour=4, minute=55)
+    # Left side: the whiteboard, a recycling bin
+    whiteboard(S, -7.4, -4.4, yaw=30, scribbles="notes")
+    recycle_bin(S, -6.3, -5.2)
+    tall_plant(S, -10.6, -3.0)
     # Right side
     water_cooler(S, 8.6, -4.6, yaw=-30)
     vending_machine(S, 10.4, -4.3, yaw=-60)
+    wet_floor_sign(S, 6.9, -4.2, yaw=-15)
+    fire_extinguisher(S, 9.6, -5.6)
     plant(S, 9.0, 1.6, 1.1)
-    papers(S, -7.6, 3.2, 4)
+    papers(S, -4.4, -4.6, 4)
 
 
 def build_parking_lot(S):
     """Behind the office: asphalt, parking stalls, cars, and the Trucker's semi."""
-    S.floor(-18, -9.5, 18, 12, 4.0, "#4a4d55", "#45484f")
+    S.tex_floor(-18, -9.5, 18, 12, tex("asphalt", T.asphalt, (4.0, 4.0), rough=0.95))
     # Sidewalk, curb and a hedge along the back
-    S.box((0, 0, -10.5), (36, 0.15, 2.0), "#b8b4aa")
+    S.box((0, 0, -10.5), (36, 0.15, 2.0), "#b8b4aa", tex=tex("sidewalk", lambda: T.stone_tile("#c2bdb2", seed=12, n=2, grout="#9a958c"), (2.0, 2.0)))
     S.box((0, 0, -9.45), (36, 0.18, 0.15), "#f1c40f")
     for i in range(18):
         S.sph((-17 + i * 2.0, 0.55, -11.3), (1.1, 0.6, 0.6), "#2e7d4f", segs=10)
-    window_wall(S, -12.6, -18, 18, h=3.5, color="#b9b2a5", sky="#ffd7a8")
+    window_wall(S, -12.6, -18, 18, h=3.5, color="#b9b2a5", sky="#ffd7a8", mood="facade")
+    # The signs: reserved spots, and a NO TRUCKS sign right next to the semi
+    parking_sign(S, -4.0, -9.2, "RESERVED\nCEO")
+    parking_sign(S, -9.0, -9.2, "COMPACT\nONLY")
+    parking_sign(S, -1.7, -9.2, "NO\nTRUCKS")
+    floor_text(S, "CEO", -3.9, -6.6, 0.9, "#f5f5f0")
+    floor_text(S, "SLOW", -6.4, -3.6, 0.8, "#f1c40f")
+    speed_bump(S, -6.6, -4.9, length=3.2)
+    hydrant(S, -6.2, -9.9)
+    bike_rack(S, -11.6, -10.3, n=4)
+    trash_can(S, 0.8, -10.1)
     # Stall lines: a row along the back and a row on the left
     for i in range(-6, 8):
         S.decal(i * 2.6, -7.0, 0.12, 4.0, "#f5f5f0")
@@ -762,8 +1139,12 @@ def build_parking_lot(S):
 
 def build_desk_pods(S):
     """Sales floor: pods of four desks with partitions, the leaderboard, the printer."""
-    S.floor(-18, -16, 18, 12, 1.0, "#455d85", "#3e547a")
-    window_wall(S, -11.0, -16, 16, sky="#d9ecff")
+    S.tex_floor(-18, -16, 18, 12, carpet("#4a6189", "#ffd23f", 2))
+    window_wall(S, -11.0, -16, 16, sky="#d9ecff", mood="day")
+    hanging_sign(S, -2.8, 1.7, -8.6, "Q4 OR BUST", w=2.8, h=0.5, bg="#c0392b")
+    hanging_sign(S, 2.4, 1.7, -8.6, "ALWAYS BE FOLLOWING UP", w=3.6, h=0.42, bg="#1e272e", fg="#ffd23f")
+    gong(S, 4.6, -7.2, yaw=-10)
+    sign(S, -6.6, 1.92, -5.62, "LEADERBOARD", w=2.0, h=0.32, bg="#0984e3")
 
     def pod(cx, cz, seed):
         for dx in (-0.8, 0.8):
@@ -778,21 +1159,22 @@ def build_desk_pods(S):
     pod(1.6, -6.8, 1)
     pod(-4.6, -6.8, 2)
     pod(7.8, -6.8, 3)
-    # Sales leaderboard (one name is dropping hard) and the printer station
-    whiteboard(S, -8.4, -3.4, yaw=40, w=2.2, scribbles="chart")
-    printer(S, -9.9, -0.6, yaw=70)
-    cardboard_box(S, -10.6, 0.6, yaw=15, size=0.6)
-    cardboard_box(S, -10.5, 0.62, yaw=-10, size=0.45, y=0.42)
+    # Sales leaderboard (one bar is dropping hard) and the printer station
+    whiteboard(S, -6.6, -5.6, yaw=0, w=2.2, scribbles="chart")
+    printer(S, -9.6, -6.4, yaw=60)
+    cardboard_box(S, -10.3, -5.2, yaw=15, size=0.6)
+    cardboard_box(S, -10.2, -5.18, yaw=-10, size=0.45, y=0.42)
+    recycle_bin(S, -8.9, -3.6, color="#27ae60")
     filing_cabinet(S, 9.4, -3.3, yaw=-50, drawers=4)
     plant(S, 10.2, 0.4, 1.2)
-    tall_plant(S, -10.8, -5.4)
-    papers(S, 6.8, 3.6, 4, seed=7)
+    tall_plant(S, -10.8, -7.6)
+    papers(S, -4.6, -4.4, 4, seed=7)
 
 
 def build_meeting_room(S):
     """The Copilot's meeting room: long table, the big screen, glass wall."""
-    S.floor(-18, -16, 18, 12, 1.0, "#4a5178", "#434a6e")
-    window_wall(S, -11.2, -16, 16, color="#2f3450", sky="#7f8fd6")
+    S.tex_floor(-18, -16, 18, 12, carpet("#454c72", "#8f9be0", 3))
+    window_wall(S, -11.2, -16, 16, color="#2f3450", sky="#7f8fd6", mood="night")
     meeting_table(S, 2.4, -6.9, length=7.6, width=1.7)
     for i in range(6):
         x = -0.9 + i * 1.32
@@ -802,41 +1184,60 @@ def build_meeting_room(S):
         office_chair(S, x, -6.9, yaw=90 if x < 0 else -90, color="#1b2745")
     S.cyl((2.4, 0.75, -6.9), 0.16, 0.04, "#2d3436", segs=12)
     S.cyl((2.4, 0.79, -6.9), 0.06, 0.01, "#7fd4ff", segs=10, emit=2.0)
-    tv_stand(S, 2.4, -9.3, w=4.2, h=2.2, screen="#2e86de")
+    tv_stand(S, 2.4, -9.3, w=4.2, h=2.2, screen="#2e86de", caption="NOW WITH AI")
     glass_wall(S, -8.6, -10.5, 3.5)
+    whiteboard(S, -6.6, -8.4, yaw=12, w=2.2, scribbles=[("AGENDA", "#2d3436"), ("1. AI", "#c0392b"),
+                                                       ("2. MORE AI", "#2980b9"), ("3. ???", "#27ae60")])
     credenza(S, 9.6, -5.6, yaw=-60)
     S.cyl((9.4, 0.8, -5.3), 0.1, 0.28, "#2d3436", segs=10)
-    whiteboard(S, 9.0, -1.8, yaw=-35, scribbles="notes")
-    plant(S, -10.8, -6.0, 1.2)
+    column(S, 7.8, -9.8, color="#2f3450", clock=True, hour=11, minute=58)
+    plant(S, -7.6, -5.4, 1.2)
     tall_plant(S, 11.0, -8.0)
 
 
 def build_office_center(S):
     """Middle of the office: the Guardian's speakers and DJ table, a lounge, ping pong."""
-    S.floor(-18, -16, 18, 12, 1.2, "#6e5394", "#634a88")
-    window_wall(S, -11.0, -16, 16, sky="#ffd1ec")
+    S.tex_floor(-18, -16, 18, 12, carpet("#6e5394", "#ff5fa2", 4))
+    window_wall(S, -11.0, -16, 16, sky="#ffd1ec", mood="pink")
     speaker_tower(S, -1.4, -5.4, glow="#ff5fa2")
     speaker_tower(S, 6.4, -5.4, glow="#4fc3ff")
     dj_table(S, 2.5, -6.2)
     string_lights(S, -1.4, 6.4, -5.9, 2.3, n=16, sag=0.4)
+    disco_ball(S, 4.8, 2.27, -7.2)
+    # A light-up dance floor behind the DJ, and a neon sign over it
+    for i in range(8):
+        for j in range(4):
+            S.box((0.4 + i * 0.6, 0, -9.6 + j * 0.6), (0.56, 0.02, 0.56),
+                  ["#ff5fa2", "#4fc3ff", "#ffd23f", "#9b59b6"][(i + j * 3) % 4], emit=1.4)
+    S.box((2.5, 1.2, -10.4), (4.6, 0.7, 0.06), "#1a1a22")
+    S.text("NOW PLAYING", (2.5, 1.33, -10.35), 0.42, "#ff5fa2", emit=4.0)
     # Lounge on the left
-    couch(S, -9.2, -2.2, yaw=70, color="#16a085", length=2.4)
-    bean_bag(S, -7.7, -4.6, "#e84393")
-    bean_bag(S, -9.4, 1.4, "#fdcb6e")
-    coffee_table(S, -8.2, -1.6, yaw=70)
-    S.cyl((-8.2, 0.41, -1.6), 0.06, 0.12, "#ffffff", segs=8)
-    # Ping pong in the back right, snacks
-    ping_pong_table(S, 10.6, -6.0, yaw=-25)
-    vending_machine(S, -6.4, -8.8, body="#2980b9")
-    bookshelf(S, -9.6, -7.2, yaw=40, seed=4)
+    couch(S, -8.4, -6.6, yaw=30, color="#16a085", length=2.4)
+    bean_bag(S, -6.4, -5.0, "#e84393")
+    bean_bag(S, -9.4, -4.4, "#fdcb6e")
+    coffee_table(S, -7.4, -5.6, yaw=30)
+    S.cyl((-7.4, 0.41, -5.6), 0.06, 0.12, "#ffffff", segs=8)
+    hanging_sign(S, 7.6, 1.75, -9.4, "VIBE CHECK", w=2.4, h=0.46, bg="#6c3483", fg="#ffd23f", emit=1.2)
+    # Ping pong in the back left, snacks
+    ping_pong_table(S, -4.4, -9.2, yaw=8)
+    vending_machine(S, -10.6, -8.4, yaw=40, body="#2980b9")
+    bookshelf(S, 9.6, -7.2, yaw=-40, seed=4)
     plant(S, 9.8, -1.0, 1.2)
-    tall_plant(S, 12.0, -2.6)
+    tall_plant(S, -10.8, -2.8)
 
 
 def build_james_desk(S):
     """James's old desk: never cleaned out. Golf stuff, a dead plant, dim screens."""
-    S.floor(-18, -16, 18, 12, 1.0, "#52668a", "#4a5d80")
-    window_wall(S, -11.0, -16, 16, sky="#8fa3c9")
+    S.tex_floor(-18, -16, 18, 12, carpet("#55688a", "#a9b8d6", 5))
+    window_wall(S, -11.0, -16, 16, sky="#8fa3c9", mood="dusk")
+    # His name on the cubicle wall, a note, and the clock that stopped at quitting time
+    sign(S, 2.6, 1.34, -7.96, "JAMES", w=1.1, h=0.34, bg="#ecf0f1", fg="#2d3436", frame="#7f8c8d")
+    sign(S, -1.2, 0.7, -7.94, "OUT OF\nOFFICE", w=0.62, h=0.42, bg="#fdfdfd", fg="#c0392b")
+    sign(S, 5.2, 0.62, -7.94, "GONE\nGOLFING", w=0.62, h=0.42, bg="#ffeaa7", fg="#2d3436")
+    column(S, -7.4, -6.2, clock=True, hour=5, minute=0, clock_y=1.7)
+    hanging_sign(S, -3.2, 1.75, -9.4, "LOST & FOUND", w=2.2, h=0.4, bg="#34495e")
+    for (x, z, r) in [(1.2, -5.0, 0.7), (4.4, -4.6, 0.5), (-3.2, -6.4, 0.8)]:  # dust
+        S.cyl((x, 0.003, z), r, 0.006, "#6c7a94", segs=14)
     # His desk, still logged in
     desk(S, 2.6, -6.2, screen="#9fd3ff")
     desk_lamp(S, 3.2, 0.745, -6.45)
@@ -862,12 +1263,18 @@ def build_james_desk(S):
 
 def build_villiam_burginson(S):
     """The burger joint: the counter, the kitchen, booths, and the Village Sauce."""
-    S.floor(-18, -16, 18, 12, 0.8, "#c0392b", "#f4f1e8")
-    window_wall(S, -11.6, -16, 16, color="#8e2b20", sky="#ffe08a")
-    # Kitchen behind the counter
-    fryer(S, -2.8, -8.2)
-    fryer(S, -1.8, -8.2)
-    grill(S, 0.4, -8.2, w=1.8)
+    S.tex_floor(-18, -16, 18, 12, tex("diner_tile", lambda: T.diner_tile("#c0392b", "#f4f1e8"), (1.6, 1.6), rough=0.35))
+    window_wall(S, -11.6, -16, 16, color="#8e2b20", sky="#ffe08a", mood="warm")
+    # The name in neon across the windows, the menu over the kitchen
+    S.box((2.0, 1.02, -11.3), (6.4, 0.74, 0.06), "#1a1a22")
+    S.text("VILLIAM BURGINSON'S", (2.0, 1.2, -11.25), 0.4, "#ff5fa2", emit=4.0)
+    menu_board(S, 7.2, 1.45, -8.9, w=3.0, h=0.95, items=(("DORK BURGER", "6.99"), ("FRIES", "2.99"),
+                                                       ("VILLAGE SAUCE", "FREE*"), ("SHAKE", "3.49")))
+    # Kitchen behind the counter (the grill and its tall hood off to the side, so they don't
+    # hide the neon sign)
+    fryer(S, -0.6, -8.2)
+    fryer(S, 0.4, -8.2)
+    grill(S, -3.6, -8.2, w=1.8)
     heat_lamp_shelf(S, 3.6, -7.6, w=2.6)
     soda_fountain(S, 7.0, -8.2)
     # The counter
@@ -877,13 +1284,13 @@ def build_villiam_burginson(S):
     sauce_display(S, -1.9, 1.05, -6.35, size=1.8)
     S.box((-2.6, 1.05, -6.3), (0.5, 0.06, 0.35), "#c0392b")  # a tray
     S.cyl((-2.5, 1.11, -6.3), 0.1, 0.07, "#f0b35b", segs=10)
-    neon_sign(S, -2.6, 1.4, -11.35, w=2.6, h=1.3)
+    neon_sign(S, 7.2, 1.2, -11.35, w=1.6, h=0.9)
     # Booths on the left, tables on the right
     booth(S, -4.3, -4.5, yaw=0)
     booth(S, -7.7, -1.4, yaw=90)
     diner_table(S, 9.2, -3.2)
     diner_table(S, 9.8, 0.6)
-    a_frame_sign(S, -6.6, -6.6, yaw=30)
+    a_frame_sign(S, -6.6, -6.6, yaw=30, text="TRY THE\nVILLAGE\nSAUCE")
     trash_can(S, -7.0, -7.0)
     trash_can(S, 11.0, -6.0, color="#c0392b")
     plant(S, 11.4, -1.6, 1.0)
@@ -934,6 +1341,20 @@ OVERWORLD_ROOMS = {
 SCREENS = ["#7fd4ff", "#a3f7bf", "#ffeaa7"]
 
 
+def overworld_floor(room):
+    """Each room's floor texture: stone in the hallway, wood in the lobby, asphalt out back,
+    and each department's own carpet (the same colors as its battle arena)."""
+    return {
+        "hallway": lambda: tex("hall_tile", lambda: T.stone_tile("#bcb19b", seed=21, n=2, grout="#91887a"), (2.4, 2.4)),
+        "lobby": lambda: wood("floor"),
+        "parking_lot": lambda: tex("asphalt", T.asphalt, (4.0, 4.0), rough=0.95),
+        "james_desk": lambda: carpet("#55688a", "#a9b8d6", 5),
+        "desk_pods": lambda: carpet("#4a6189", "#ffd23f", 2),
+        "office_center": lambda: carpet("#6e5394", "#ff5fa2", 4),
+        "meeting_room": lambda: carpet("#454c72", "#8f9be0", 3),
+    }[room]()
+
+
 def _shade(color, k):
     """A hex color darkened by k (0 to 1)."""
     c = color.lstrip("#")
@@ -964,8 +1385,10 @@ def _walls(S, fixed, a0, a1, gaps, h, color, along_x):
 def build_overworld(S):
     """The whole office floor: the code-built layout with real furniture, and the empty
     corners filled. Extra pieces sit along walls and in corners, off the walking paths."""
-    for x, z, w, d, col, tile in OVERWORLD_ROOMS.values():
-        S.floor(x, z, x + w, z + d, tile, col, _shade(col, 0.07))
+    for room, (x, z, w, d, col, tile) in OVERWORLD_ROOMS.items():
+        S.tex_floor(x, z, x + w, z + d, overworld_floor(room), step=2.0)
+    # Grass all around the building (the game's own green plane sits just under it).
+    S.tex_floor(-70, -70, 70, 70, tex("grass", T.grass, (6.0, 6.0), rough=1.0), step=10.0, y=-0.05)
     outer, inner = "#c9c4ba", "#ebe7df"
     _walls(S, -26.0, -27.0, 27.0, [], 1.4, outer, True)
     _walls(S, 16.0, -27.0, 27.0, [], 1.4, outer, True)
@@ -995,16 +1418,27 @@ def build_overworld(S):
     tall_plant(S, 8.0, 1.0)
     bookshelf(S, 8.4, 8.6, yaw=-90)
     water_cooler(S, 8.3, 11.6, yaw=-90)
-    # Hallway: water cooler, plants, vending machines at the far ends.
+    # The company's name behind reception, and a welcome mat by the elevator
+    S.box((4.0, 0, 8.3), (4.2, 1.35, 0.12), "#2d3436")
+    sign(S, 4.0, 0.62, 8.22, "VILLIAM BURGINSON INC.", w=3.9, h=0.5, bg="#2d3436", fg="#ffd23f", yaw=180)
+    S.decal(-6.2, 10.0, 1.6, 1.1, "#5d4037", y=0.002)
+    floor_text(S, "WELCOME", -6.2, 10.1, 0.28, "#ffd23f")
+    # Hallway: water cooler, plants, vending machines at the far ends, a runner rug and
+    # posters on the walls.
     water_cooler(S, -11.0, -7.3)
     plant(S, 11.0, -0.7)
     plant(S, -26.0, -0.8)
     plant(S, 26.0, -7.2)
     vending_machine(S, -26.3, -4.4, yaw=90)
     vending_machine(S, 26.3, -3.4, yaw=-90, body="#2e86c1")
+    rug(S, 0.0, -4.0, 40.0, 2.2, "#7b3b46", "#5a2a33")
+    for x, word, sky in ((-9.0, "SYNERGY", "#2e86de"), (9.0, "HUSTLE", "#e17055"), (-24.0, "FOCUS", "#00b894"), (24.0, "TEAMWORK", "#6c5ce7")):
+        motivational_poster(S, x, 0.04, -7.84, word, sky=sky)
     # Parking lot: stall lines, the semi, two cars, a lamp post, cones, a dumpster.
     for x in (-25.6, -22.4, -13.6, -10.4):
         S.decal(x, 8.5, 0.12, 3.4, "#f1c40f")
+    floor_text(S, "CEO", -18.0, 13.0, 1.0, "#f5f5f0")
+    speed_bump(S, -18.0, 4.6, length=3.6)
     semi_truck(S, -24.0, 6.8, yaw=90)
     car(S, -12.0, 4.2, yaw=90, color="#2e86c1")
     car(S, -12.0, 11.6, yaw=90, color="#f39c12")

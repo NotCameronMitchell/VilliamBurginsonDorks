@@ -389,6 +389,7 @@ func _props() -> void:
 	# Lobby: reception desk, couch, plants, rug.
 	_box(Vector3(7, 0.01, 7), Vector3(0, 0, 9), Color("#8e3b46"), false)
 	_box(Vector3(4.6, 1.1, 1.2), Vector3(4.0, 0, 5.4), Color("#a1785c"))
+	_box(Vector3(4.2, 1.35, 0.12), Vector3(4.0, 0, 8.3), Color("#2d3436"))  # the company sign behind reception
 	_box(Vector3(3.0, 0.7, 1.1), Vector3(-3.0, 0, 14.4), Color("#2e86c1"))
 	_plant(-8.0, 15.0)
 	_plant(8.0, 15.0)

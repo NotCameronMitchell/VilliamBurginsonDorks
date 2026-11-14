@@ -155,5 +155,5 @@ Village Sauce upgrades. This is the main balance check.
 - [x] Battle arenas built in Blender (all seven), with per-arena lighting and a lower Pokemon-style battle camera
 - [x] Original music and sound effects
 - [x] Detailed Copilot, burger crew and coworker minions (the object minions stay chibi)
-- [ ] Hand-polished arenas and office
+- [x] Polished arenas and office: generated textures, city views, signs, accent lights
 - [x] Overworld office map: walk the office, pick the boss order, coworker line-of-sight fights, elevator to the burger joint

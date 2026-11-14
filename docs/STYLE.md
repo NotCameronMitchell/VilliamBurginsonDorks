@@ -30,6 +30,13 @@ effect or sound, check it against this page (and a screenshot of the game) first
 - **Palette:** one dominant color per arena (blue office, orange parking lot, purple
   middle of the office, red and yellow burger joint), with the battle platforms in it.
 - **Fill the space:** no empty floors or bare walls behind the fight.
+- **Surfaces:** textured, not flat colors: carpet tiles, asphalt, glossy diner tile,
+  wood and fabric (`art/tools/textures.py`), with the city outside the windows.
+- **Jokes on the walls:** every arena has a few readable signs, posters or neon in office
+  humor (NO FISH IN THE MICROWAVE, Q4 OR BUST, AGENDA: 1. AI 2. MORE AI). Keep them
+  short, big (letters at least 0.25 m) and out from under the HUD.
+- **Glow spills:** a glowing prop (a screen, neon, a lamp) gets a soft colored light
+  next to it, so its color lands on the floor and the characters.
 
 ## Combat feel
 
