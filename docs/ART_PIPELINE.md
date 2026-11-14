@@ -279,8 +279,18 @@ powershell -File art/trailer/make_trailer.ps1 -Step stills          # one still 
 ```
 
 - **`timeline.py`:** the shot list, narration, on-screen text and the music's hits.
+- **`voice.py`:** speaks the narration with Kokoro, an open-source text-to-speech model
+  (Apache-2.0) that runs on the CPU through kokoro-onnx. The voice is `bm_george`; pick
+  another with `-Voice`, or blend voices with `"bm_george:0.7,am_fenrir:0.3"`. Without Kokoro,
+  Windows' built-in voice is used.
 - **`music.py`:** synthesizes the soundtrack (drones, choir, music box, strings, taiko,
-  brass, risers). It mixes in the narration, which comes from Windows' built-in voice.
+  brass, risers) and mixes in the narration.
+
+**Kokoro setup** (once per PC):
+1. Make a venv in `~\.vbd\kokoro\.venv` (or set `$env:KOKORO_HOME`).
+2. Run `pip install kokoro-onnx soundfile` in it.
+3. Put `kokoro-v1.0.onnx` and `voices-v1.0.bin` in `~\.vbd\kokoro\models\`. Both are in the
+   `model-files-v1.0` release of github.com/thewh1teagle/kokoro-onnx.
 - **`trailer.py`:** builds the set and the ghost, and animates the heroes with their game
   animations. It renders the frames, then cuts in the titles, subtitles, fades and sound
   with Blender's video editor.

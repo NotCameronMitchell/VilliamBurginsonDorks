@@ -5,7 +5,7 @@ Synthesizes the trailer's soundtrack from timeline.py and mixes in the narration
 
 Everything is generated with numpy/scipy: wind, drones, a choir pad, a music-box motif,
 driving strings, taiko drums, brass "braams", risers, impacts and a hall reverb. The
-narration WAVs (Windows' text-to-speech, see make_trailer.ps1) are trimmed, deepened and
+narration WAVs (Kokoro via voice.py, or Windows' voice; see make_trailer.ps1) are trimmed, deepened and
 placed at their timeline cues, with the music ducking under them.
 """
 
@@ -338,12 +338,16 @@ def load_wav(path):
     return x
 
 
+PITCH = 0.95  # below 1 deepens (and slows) the narration a little
+
+
 def voice(path, t):
     x = load_wav(path)
     idx = np.nonzero(np.abs(x) > 0.02)[0]
     if len(idx):
         x = x[max(0, idx[0] - 600): idx[-1] + 2400]
-    x = signal.resample_poly(x, 100, 89)  # deeper and a touch slower
+    if PITCH != 1.0:
+        x = signal.resample_poly(x, 1000, int(round(1000 * PITCH)))
     x = sos_filter(x, "high", 70)
     x = x / (np.abs(x).max() + 1e-9) * 0.85
     vo_bus.add(x, t, 1.0)
@@ -377,7 +381,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vo", help="folder with n1.wav... (narration)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--pitch", type=float, default=0.95,
+                    help="narration pitch: 0.95 for Kokoro, about 0.89 for Windows' voice")
     a = ap.parse_args()
+    global PITCH
+    PITCH = a.pitch
     score()
     duck = np.ones(N)
     if a.vo:

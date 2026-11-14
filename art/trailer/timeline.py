@@ -49,7 +49,8 @@ HERO_TAGLINE = {  # roles from scripts/data/hero_data.gd
     "sarah": "Rogue. Pure damage.",
 }
 
-# Narration: (file id, start, text). The voice is Windows' "David", deepened by music.py.
+# Narration: (file id, start, text). Spoken by Kokoro (voice.py; phrasing and pauses there),
+# or Windows' built-in voice as a fallback (make_trailer.ps1), deepened a little by music.py.
 NARRATION = [
     ("n1", 1.0, "Every office has its ghosts."),
     ("n2", 7.4, "Some of them never clock out."),

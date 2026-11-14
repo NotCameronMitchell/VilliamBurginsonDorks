@@ -1,6 +1,8 @@
 # Makes the trailer end to end:
-#   powershell -File art/trailer/make_trailer.ps1 [-Out DIR] [-Res 1280x720] [-Samples 32] [-Step all|vo|music|frames|edit|stills]
-# 1. vo:     narration lines with Windows' built-in voice (timeline.py NARRATION)
+#   powershell -File art/trailer/make_trailer.ps1 [-Out DIR] [-Res 1280x720] [-Samples 32] [-Voice bm_george] [-Step all|vo|music|frames|edit|stills]
+# 1. vo:     the narration (timeline.py NARRATION), spoken by Kokoro (voice.py) if it's set up
+#            in $env:KOKORO_HOME (default ~\.vbd\kokoro: .venv with kokoro-onnx + soundfile, and
+#            models\ with kokoro-v1.0.onnx and voices-v1.0.bin); otherwise Windows' built-in voice
 # 2. music:  the soundtrack, synthesized, with the narration mixed in (music.py; needs Python
 #            with numpy and scipy: set $env:VBD_PYTHON, or the Kimodo venv is used, or "python")
 # 3. frames: every frame rendered in Blender (trailer.py; resumable)
@@ -9,10 +11,14 @@ param(
     [string]$Out = (Join-Path ([Environment]::GetFolderPath("MyVideos")) "VilliamBurginsonDorks_trailer"),
     [string]$Res = "1280x720",
     [int]$Samples = 32,
+    [string]$Voice = "bm_george",
     [string]$Step = "all"
 )
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 New-Item -ItemType Directory -Force $Out | Out-Null
+$kokoro = if ($env:KOKORO_HOME) { $env:KOKORO_HOME } else { Join-Path $env:USERPROFILE ".vbd\kokoro" }
+$kokoroPy = Join-Path $kokoro ".venv\Scripts\python.exe"
+$useKokoro = (Test-Path $kokoroPy) -and (Test-Path (Join-Path $kokoro "models\kokoro-v1.0.onnx"))
 
 function Run-Blender([string[]]$extra) {
     $blender = $env:BLENDER
@@ -30,7 +36,10 @@ function Run-Blender([string[]]$extra) {
     if (Test-Path $log) { Get-Content $log | Select-Object -Last 8 }
 }
 
-if ($Step -in @("all", "vo")) {
+if ($Step -in @("all", "vo") -and $useKokoro) {
+    & $kokoroPy (Join-Path $here "voice.py") --models (Join-Path $kokoro "models") --out (Join-Path $Out "vo") --voice $Voice
+    Write-Host "narration (Kokoro, $Voice): $(Join-Path $Out 'vo')"
+} elseif ($Step -in @("all", "vo")) {
     Add-Type -AssemblyName System.Speech
     $vo = Join-Path $Out "vo"
     New-Item -ItemType Directory -Force $vo | Out-Null
@@ -60,7 +69,8 @@ if ($Step -in @("all", "music")) {
         $kim = Join-Path $env:LOCALAPPDATA "VilliamBurginsonDorks\kimodo\.venv\Scripts\python.exe"
         $py = $(if (Test-Path $kim) { $kim } else { "python" })
     }
-    & $py (Join-Path $here "music.py") --vo (Join-Path $Out "vo") --out (Join-Path $Out "trailer_audio.wav")
+    $pitch = $(if ($useKokoro) { "0.92" } else { "0.89" })  # how much to deepen the narration
+    & $py (Join-Path $here "music.py") --vo (Join-Path $Out "vo") --pitch $pitch --out (Join-Path $Out "trailer_audio.wav")
 }
 if ($Step -in @("all", "frames")) { Run-Blender @("--stage", "frames") }
 if ($Step -eq "stills") { Run-Blender @("--stage", "stills") }
