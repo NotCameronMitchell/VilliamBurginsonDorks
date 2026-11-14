@@ -66,6 +66,15 @@ Rebuild everything with `powershell -File art/tools/run_blender.ps1`. See
 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md) to tweak their looks or swap in
 hand-made models.
 
+**Detailed heroes (in progress):** the heroes are being remade as detailed models of the
+real people, using free tools:
+- **Concept art:** Gemini turns each person's photo into concept art.
+- **Models:** Tencent's Hunyuan 3D builds the 3D model.
+- **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts, on this PC.
+- **Rig:** `art/tools/hero_assemble.py` auto-rigs each model and puts the motions on it.
+
+`art/tools/heroes.ps1` runs each step; see "Detailed heroes" in the art pipeline doc.
+
 **Test flags** (after `--`):
 - **Fights:** `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`, `--remix`.
 - **Playback:** `--auto` (the AI plays, including walking the office), `--skip-story`,

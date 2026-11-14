@@ -1,5 +1,78 @@
 # Art pipeline: Blender → Godot
 
+## Detailed heroes (in progress)
+
+The six heroes and their two ultimate forms are being remade as detailed, Pokemon Scarlet/
+Violet-style models of the real people, with motion-captured movement. Every tool is free:
+
+| Step | Tool | Where it runs | Output |
+|---|---|---|---|
+| 1. Concept art | Google Gemini (photo + prompt) | gemini.google.com | `art/heroes/<id>/concept_front.png` (+ `_back`, `_left`) |
+| 2. 3D model | Tencent Hunyuan 3D (20 free a day) | 3d.hunyuanglobal.com | `art/heroes/<id>/model.glb` |
+| 3. Motions | NVIDIA Kimodo (text to motion) | this PC's GPU | `art/heroes/motion/<hero>/<anim>.npz` |
+| 4. Rig, animate, export | `hero_assemble.py` (Blender) | this PC | `assets/models/heroes/<id>.glb` |
+
+The look and motion prompts live in `art/tools/hero_specs.py`.
+
+**Photos:** the reference photos stay out of the repo, in `Pictures/Villiam Burginson Dorks/<id>.jpg`
+(or `$env:VBD_PHOTOS`).
+
+```
+powershell -File art/tools/heroes.ps1 prompts               # each hero's Gemini prompts
+powershell -File art/tools/heroes.ps1 motions [--only cole] # generate Kimodo motions
+powershell -File art/tools/heroes.ps1 assemble [--only cole] [--render C:\temp\previews]
+```
+
+**1. Concept art.** In Gemini, attach the hero's photo and paste their prompt from
+`heroes.ps1 prompts`. In the same chat, ask for the back and left views with the follow-up
+prompts. Save the images as `concept_front.png`, `concept_back.png`, `concept_left.png`.
+
+**2. Model.** In Hunyuan 3D, choose Image to 3D, add the views (front first), generate, and
+download the GLB as `art/heroes/<id>/model.glb`. The pose must be the A-pose from the concept
+art; the auto-rigger depends on it.
+
+**3. Motions.** Kimodo runs locally (see "Kimodo setup" below). Each hero has a prompt per
+animation in `hero_specs.py` (`HERO_MOTIONS`, plus `SHARED_MOTIONS` for walk, hit, stunned and
+faint). The forms reuse their hero's motions. Change a prompt or its `seed`, then rerun
+`motions`: only changed motions are regenerated.
+
+**4. Assemble.** For each hero, `hero_assemble.py`:
+1. Takes the model.
+2. **Auto-rigs it:** finds the joints by slicing the mesh, builds a Mixamo-named skeleton, and
+   skins it with Blender's automatic weights on a solid voxel copy.
+3. **Retargets every Kimodo motion onto it:** loops the looping ones and cuts the walk to one
+   clean step cycle.
+4. **Exports the game model.** It's scaled by `GAME_SCALE` (0.8), so the cast stands about as
+   tall as the old chibi models.
+
+If a hero already has a rig (`rigged.glb` or `rigged.fbx`, for example from Mixamo), that rig
+is used instead. Two checks need no model:
+- `--mannequin` puts the motions on a jointed stand-in.
+- `--test-body` runs the auto-rigger on a smooth test figure.
+
+With `--render DIR`, it saves a contact sheet: a row per animation.
+
+**Kimodo setup** (once per PC):
+1. Clone https://github.com/nv-tlabs/kimodo to `%LOCALAPPDATA%\VilliamBurginsonDorks\kimodo`, or
+   set `$env:KIMODO_HOME`.
+2. Make a Python 3.11 venv in `.venv`.
+3. Install PyTorch with CUDA (`--index-url https://download.pytorch.org/whl/cu128` for RTX 50
+   cards).
+4. Install Kimodo with `SKIP_MOTION_CORRECTION_IN_SETUP=1 pip install -e .`. This skips
+   Kimodo's optional C++ foot-skate cleanup, which needs a compiler.
+5. **Text encoder:** Kimodo reads prompts with Meta's Llama 3 8B, a gated model. Accept its
+   license at huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct, then run
+   `.venv\Scripts\hf.exe auth login`. On an 8 GB GPU the encoder runs on the CPU (needs about
+   16 GB of RAM).
+
+**Paid alternative:** `art/tools/meshy.py` does steps 1, 2 and the rig through Meshy's API
+(about 45 credits a hero). Set `MESHY_API_KEY`, then use `heroes.ps1 meshy plan`.
+
+**Licenses and credits:** Kimodo is Apache-2.0; its SOMA weights are under the NVIDIA Open
+Model License (commercial use allowed). The Llama 3 text encoder is under Meta's Llama 3
+license. Hunyuan 3D and Gemini outputs fall under those services' terms. That's fine for a free
+game; check them before selling it.
+
 ## Generated models (what's in the game now)
 
 Every character (85 models) is built by a Python script running in Blender:

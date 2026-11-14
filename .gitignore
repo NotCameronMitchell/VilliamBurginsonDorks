@@ -7,6 +7,12 @@ export_presets.cfg
 # Builds
 /build/
 
+# Reference photos of real people never go in the repo (keep them in Pictures/Villiam Burginson Dorks)
+art/heroes/photos/
+art/heroes/**/*.jpg
+art/heroes/**/*.jpeg
+art/heroes/**/*.heic
+
 # Blender autosaves and backups
 *.blend1
 *.blend2
