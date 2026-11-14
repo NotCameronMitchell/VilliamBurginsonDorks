@@ -1,0 +1,11 @@
+{
+  "hero": "guardian",
+  "anim": "ultimate",
+  "prompt": "A woman raises both arms and dances energetically in place, then strikes a big pose facing forward.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

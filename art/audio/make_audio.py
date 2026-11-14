@@ -694,10 +694,20 @@ def thump(f0=160, f1=50, decay=0.09, dur=0.3):
 
 
 def sfx_hit():
-    n = ns(0.3)
+    """A punch: a thump, a crack, and a low sub underneath so it lands with weight."""
+    n = ns(0.36)
     t = secs(n)
     crack = filt(rng.standard_normal(n), "band", (700, 4000)) * np.exp(-t / 0.035)
-    return np.tanh(2.0 * (thump() + 0.8 * crack))
+    return np.tanh(2.0 * place([(0, thump(), 1.0), (0, crack, 0.8), (0, thump(95, 38, 0.15, 0.36), 0.9)], n))
+
+
+def sfx_glint():
+    """The 'ting' of an enemy's glint before it strikes."""
+    n = ns(0.5)
+    t = secs(n)
+    shimmer = filt(rng.standard_normal(n), "high", 6500) * np.exp(-t / 0.06) * 0.25
+    return place([(0, bell(2637, 0.5, 2.76, 1.4, 0.16), 0.8), (0.02, bell(3951, 0.4, 2.0, 0.7, 0.1), 0.4),
+                  (0, shimmer, 1.0)], n)
 
 
 def sfx_crit():
@@ -878,7 +888,7 @@ SFX = {  # name: (sound, level, room)
     "boom": (sfx_boom, 0.85, True), "car": (sfx_car, 0.7, True), "hearts": (sfx_hearts, 0.45, True),
     "popup": (sfx_popup, 0.5, False), "spawn": (sfx_spawn, 0.5, True), "alert": (sfx_alert, 0.6, False),
     "ding": (sfx_ding, 0.55, True), "pick": (sfx_pick, 0.5, False), "coin": (sfx_coin, 0.5, False),
-    "banner": (sfx_banner, 0.8, True),
+    "banner": (sfx_banner, 0.8, True), "glint": (sfx_glint, 0.5, False),
 }
 
 

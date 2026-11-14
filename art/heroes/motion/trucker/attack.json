@@ -1,0 +1,11 @@
+{
+  "hero": "trucker",
+  "anim": "attack",
+  "prompt": "A man steps forward and throws a big right hook punch with his whole body.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

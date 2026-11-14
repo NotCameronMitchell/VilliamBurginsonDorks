@@ -1,0 +1,11 @@
+{
+  "hero": "trucker",
+  "anim": "ultimate",
+  "prompt": "A man stomps forward, raises both fists over his head and slams them down hard.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

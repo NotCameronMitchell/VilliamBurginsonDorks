@@ -178,17 +178,74 @@ for _h in list(LOOKS):
         SKINS["%s_%s" % (_h, _s)] = (_h, _f(LOOKS[_h]))
 
 
+# Bosses (hero_specs.BOSSES): outfits follow their original chibi models (characters.py).
+BOSS_LOOKS = {
+    "trucker": {
+        "sex": "m", "skin": "#e0a37e", "eyes": "#4a3020",
+        "hair": {"style": "short", "color": "#4a3020"},
+        "face": {"brows": "#3a2616", "beard": "short", "beard_color": "#4a3020"},
+        "top": {"type": "buttonup", "color": "#b03a2e", "sleeves": "long", "pattern": "plaid",
+                "pattern_color": "#4a120c"},
+        "bottom": {"type": "pants", "color": "#34495e"},
+        "shoes": {"type": "boots", "color": "#3e2723", "sole": "#1e1410"},
+        "acc": ["cap"], "cap": {"color": "#2c3e50", "front": "#ecf0f1"},
+    },
+    "sales_guy": dict(_suit("#2c3e50", "#8e44ad"), **{
+        "sex": "m", "skin": "#f0c09a", "eyes": "#3a5a7a",
+        "hair": {"style": "short", "color": "#151515"},
+        "face": {"brows": "#151515", "beard": "none"},
+        "acc": ["stirrer"],
+    }),
+    "guardian": {
+        "sex": "f", "skin": "#f2c09a", "eyes": "#4a6a3a",
+        "hair": {"style": "long", "color": "#7b4a2a"},
+        "face": {"brows": "#5a3420", "beard": "none", "blush": True},
+        "top": {"type": "tee", "color": "#e056a0", "sleeves": "short"},
+        "bottom": {"type": "pants", "color": "#3b5998"},
+        "shoes": {"type": "sneakers", "color": "#ffffff", "sole": "#e0e0e0"},
+        "acc": ["headphones"],
+    },
+    # James's old-job self, back to haunt the office: James in his old work clothes, as a ghost.
+    "ghost": dict(LOOKS["james"], **{
+        "ghost": True,
+        "top": {"type": "buttonup", "color": "#cfe3f5", "sleeves": "long", "tie": "#5a6a8a"},
+        "bottom": {"type": "pants", "color": "#3b3f4a"},
+        "shoes": {"type": "leather", "color": "#2a2a2a", "sole": "#111111"},
+        "acc": ["lanyard"],
+    }),
+}
+
+# Remixes (cycle 2+): changes on top of the boss's look.
+REMIX_LOOKS = {
+    "trucker": {"under": BOSS_LOOKS["trucker"]["top"],
+                "top": {"type": "vest", "color": "#d6ff1f", "pattern": "reflective"},
+                "acc": ["cap", "sunglasses"]},
+    "sales_guy": dict(_suit("#7f8c8d", "#2c3e50"), acc=["stirrer"]),
+    "guardian": {"top": {"type": "sweater", "color": "#1e8449", "sleeves": "long", "pattern": "holiday"}},
+    "ghost": {"acc": ["lanyard", "cap"], "cap": {"color": "#cfe3ff", "front": "#cfe3ff"}},
+}
+
+
 def base_of(model_id):
-    """The hero or form whose body (and motions) a model uses."""
+    """The hero, form or boss whose body (and motions) a model uses."""
     if model_id in SKINS:
         return SKINS[model_id][0]
+    if model_id.endswith("_remix"):
+        return model_id[:-len("_remix")]
     return model_id
 
 
 def look(model_id):
-    """The full look for a hero, form or skin id."""
+    """The full look for a hero, form, skin, boss or remix id."""
     if model_id in LOOKS:
         return dict(LOOKS[model_id])
+    if model_id in BOSS_LOOKS:
+        return dict(BOSS_LOOKS[model_id])
+    if model_id.endswith("_remix"):
+        boss = model_id[:-len("_remix")]
+        out = dict(BOSS_LOOKS[boss])
+        out.update(REMIX_LOOKS[boss])
+        return out
     if model_id in SKINS:
         base, over = SKINS[model_id]
     else:

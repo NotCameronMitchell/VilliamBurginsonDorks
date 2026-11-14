@@ -889,11 +889,187 @@ def build_villiam_burginson(S):
     plant(S, 11.4, -1.6, 1.0)
 
 
+def pickup(S, x, z, yaw=0.0, color="#4fc3ff"):
+    """A pickup truck pointing along +x (yaw 0): a cab up front, an open bed behind."""
+    S.box((x, 0.25, z), (4.2, 0.62, 1.8), color, yaw=yaw, bevel=0.1)
+    cx, cz = _rot(x, z, 0.55, 0, yaw)
+    S.box((cx, 0.86, cz), (1.6, 0.62, 1.62), color, yaw=yaw, bevel=0.1)
+    for dz in (-0.82, 0.82):
+        wx, wz = _rot(x, z, 0.55, dz, yaw)
+        S.box((wx, 0.94, wz), (1.3, 0.4, 0.02), "#2c3e50", yaw=yaw, glass=True)
+    fx, fz = _rot(x, z, 1.36, 0, yaw)
+    S.box((fx, 0.94, fz), (0.02, 0.4, 1.4), "#2c3e50", yaw=yaw, glass=True)
+    for dz in (-0.86, 0.86):  # the bed's walls and tailgate
+        bx, bz = _rot(x, z, -1.15, dz, yaw)
+        S.box((bx, 0.87, bz), (1.9, 0.3, 0.08), color, yaw=yaw)
+    tx, tz = _rot(x, z, -2.08, 0, yaw)
+    S.box((tx, 0.87, tz), (0.08, 0.3, 1.8), color, yaw=yaw)
+    for dx in (-1.35, 1.35):
+        for dz in (-0.85, 0.85):
+            wx, wz = _rot(x, z, dx, dz, yaw)
+            S.cyl((wx, 0.36, wz), 0.36, 0.24, "#1a1a1a", segs=12, axis="z", yaw=yaw)
+            S.cyl((wx, 0.36, wz + (0.13 if dz > 0 else -0.13)), 0.18, 0.02, "#bdc3c7", segs=10, axis="z", yaw=yaw)
+    for dz in (-0.6, 0.6):
+        hx, hz = _rot(x, z, 2.1, dz, yaw)
+        S.box((hx, 0.55, hz), (0.03, 0.15, 0.3), "#fff7c2", yaw=yaw, emit=2.0)
+        rx, rz = _rot(x, z, -2.1, dz, yaw)
+        S.box((rx, 0.55, rz), (0.03, 0.15, 0.25), "#e74c3c", yaw=yaw, emit=1.5)
+    gx, gz = _rot(x, z, 2.11, 0, yaw)
+    S.box((gx, 0.42, gz), (0.02, 0.3, 0.9), "#2d3436", yaw=yaw)
+
+
+# ===================================================================== the overworld office
+# The office floor the party walks around (scenes/overworld/office_map.gd loads it and keeps
+# the walls' and furniture's collision from its own copy of this layout). Rooms mirror
+# office_map.gd ROOMS: (x, z, width, depth, floor color, tile size).
+OVERWORLD_ROOMS = {
+    "hallway": (-27, -8, 54, 8, "#a99d86", 2.0),
+    "lobby": (-9, 0, 18, 16, "#b48a63", 2.0),
+    "parking_lot": (-27, 0, 18, 16, "#4a4d55", 6.0),
+    "james_desk": (9, 0, 18, 16, "#5f7396", 1.5),
+    "desk_pods": (-27, -26, 18, 18, "#4f6a94", 1.5),
+    "office_center": (-9, -26, 18, 18, "#7a5f9e", 1.5),
+    "meeting_room": (9, -26, 18, 18, "#3f4566", 1.5),
+}
+SCREENS = ["#7fd4ff", "#a3f7bf", "#ffeaa7"]
+
+
+def _shade(color, k):
+    """A hex color darkened by k (0 to 1)."""
+    c = color.lstrip("#")
+    return "#" + "".join("%02x" % int(int(c[i:i + 2], 16) * (1 - k)) for i in (0, 2, 4))
+
+
+def _wall(S, a, b, fixed, along_x, h, color, t=0.25):
+    """One stretch of wall from a to b, at x or z = fixed, with a trim on top and a baseboard."""
+    mid, length = (a + b) / 2, b - a
+    for y, hh, tt, c in ((0, h, t, color), (h, 0.06, t + 0.04, "#6f6a62"), (0, 0.1, t + 0.03, "#8d8a84")):
+        if along_x:
+            S.box((mid, y, fixed), (length, hh, tt), c)
+        else:
+            S.box((fixed, y, mid), (tt, hh, length), c)
+
+
+def _walls(S, fixed, a0, a1, gaps, h, color, along_x):
+    """A wall with doorways: gaps = [(center, half width), ...]."""
+    cuts = [a0]
+    for c, half in gaps:
+        cuts += [c - half, c + half]
+    cuts.append(a1)
+    for i in range(0, len(cuts), 2):
+        if cuts[i + 1] - cuts[i] > 0.05:
+            _wall(S, cuts[i], cuts[i + 1], fixed, along_x, h, color)
+
+
+def build_overworld(S):
+    """The whole office floor: the code-built layout with real furniture, and the empty
+    corners filled. Extra pieces sit along walls and in corners, off the walking paths."""
+    for x, z, w, d, col, tile in OVERWORLD_ROOMS.values():
+        S.floor(x, z, x + w, z + d, tile, col, _shade(col, 0.07))
+    outer, inner = "#c9c4ba", "#ebe7df"
+    _walls(S, -26.0, -27.0, 27.0, [], 1.4, outer, True)
+    _walls(S, 16.0, -27.0, 27.0, [], 1.4, outer, True)
+    _walls(S, -27.0, -26.0, 16.0, [], 1.4, outer, False)
+    _walls(S, 27.0, -26.0, 16.0, [], 1.4, outer, False)
+    _walls(S, -8.0, -27.0, 27.0, [(-18.0, 2.0), (0.0, 2.0), (18.0, 2.0)], 1.1, inner, True)
+    _walls(S, 0.0, -27.0, 27.0, [(-18.0, 2.0), (0.0, 3.0), (18.0, 2.0)], 1.1, inner, True)
+    for x in (-9.0, 9.0):
+        _walls(S, x, -26.0, -8.0, [], 1.1, inner, False)
+        _walls(S, x, 0.0, 16.0, [], 1.1, inner, False)
+    for dx, dz in ((-18, -8), (0, -8), (18, -8), (-18, 0), (18, 0)):
+        for s in (-1, 1):
+            S.box((dx + s * 2.15, 0, dz), (0.3, 1.6, 0.4), "#8d8a84", bevel=0.02)
+    for s in (-1, 1):
+        S.box((s * 3.15, 0, 0), (0.3, 1.6, 0.4), "#8d8a84", bevel=0.02)
+
+    # Lobby: rug, reception desk, couch and coffee table, plants, a bookshelf, water.
+    rug(S, 0.0, 9.0, 7.0, 7.0, "#8e3b46", "#6d2c35")
+    S.box((4.0, 0, 5.4), (4.6, 1.02, 1.2), "#a1785c", bevel=0.03)
+    S.box((4.0, 1.02, 5.4), (4.8, 0.05, 1.32), "#ecf0f1", bevel=0.01)
+    S.box((4.0, 0.35, 4.79), (4.4, 0.12, 0.02), "#ffd23f")
+    laptop(S, 4.6, 1.07, 5.7, yaw=180)
+    couch(S, -3.0, 14.4, yaw=180, color="#2e86c1", length=3.0)
+    coffee_table(S, -3.0, 12.9)
+    plant(S, -8.0, 15.0, 1.1)
+    plant(S, 8.0, 15.0, 1.1)
+    tall_plant(S, 8.0, 1.0)
+    bookshelf(S, 8.4, 8.6, yaw=-90)
+    water_cooler(S, 8.3, 11.6, yaw=-90)
+    # Hallway: water cooler, plants, vending machines at the far ends.
+    water_cooler(S, -11.0, -7.3)
+    plant(S, 11.0, -0.7)
+    plant(S, -26.0, -0.8)
+    plant(S, 26.0, -7.2)
+    vending_machine(S, -26.3, -4.4, yaw=90)
+    vending_machine(S, 26.3, -3.4, yaw=-90, body="#2e86c1")
+    # Parking lot: stall lines, the semi, two cars, a lamp post, cones, a dumpster.
+    for x in (-25.6, -22.4, -13.6, -10.4):
+        S.decal(x, 8.5, 0.12, 3.4, "#f1c40f")
+    semi_truck(S, -24.0, 6.8, yaw=90)
+    car(S, -12.0, 4.2, yaw=90, color="#2e86c1")
+    car(S, -12.0, 11.6, yaw=90, color="#f39c12")
+    lamp_post(S, -14.4, 8.0)
+    for x, z in ((-20.6, 2.6), (-21.3, 3.3), (-20.4, 3.9)):
+        cone(S, x, z)
+    dumpster(S, -25.6, 15.0)
+    # James's old desk: four desks with chairs, his old desk at the back, his golf bag.
+    for i, (x, z) in enumerate(((12.5, 5.0), (12.5, 10.0), (23.5, 5.0), (23.5, 10.0))):
+        desk(S, x, z, screen=SCREENS[i % 3])
+        office_chair(S, x + 0.1, z + 0.85, yaw=180 + i * 9)
+    desk(S, 18.0, 15.0, yaw=180, top="#8d6e63", screen="#2c3e50", screen_on=False)
+    golf_bag(S, 20.2, 15.0)
+    plant(S, 26.0, 1.0)
+    filing_cabinet(S, 26.3, 7.4, yaw=-90)
+    filing_cabinet(S, 26.3, 8.1, yaw=-90, drawers=4)
+    printer(S, 9.9, 13.6, yaw=90)
+    papers(S, 21.0, 12.4, 4, seed=5)
+    # Desk pods: cubicles with partitions, chairs and posters; a printer and cabinets.
+    for x in (-24.0, -12.0):
+        for j, z in enumerate((-12.0, -17.0, -22.0)):
+            partition(S, x, z - 0.85, 2.8)
+            partition(S, x + (1.45 if x < -18 else -1.45), z - 0.1, 1.8, yaw=90)
+            desk(S, x, z, screen=SCREENS[(j + int(x)) % 3])
+            office_chair(S, x - 0.1, z + 0.85, yaw=180 - j * 8)
+            poster(S, x - 0.75, 0.7, z - 0.8, w=0.42, h=0.5, colors=["#74b9ff", "#ffffff", "#ff7675"][j:] + ["#ffeaa7"] * j)
+    printer(S, -26.2, -9.4, yaw=90)
+    filing_cabinet(S, -26.3, -24.6, yaw=90, drawers=4)
+    plant(S, -26.0, -25.2)
+    plant(S, -10.0, -25.2)
+    water_cooler(S, -10.2, -14.5, yaw=-90)
+    # Middle of the office: the rug, the speakers and DJ table, couches, bean bags.
+    rug(S, 0.0, -21.0, 6.0, 6.0, "#e056a0", "#a8327a")
+    for x in (-4.2, 4.2):
+        speaker_tower(S, x, -23.6)
+    dj_table(S, 0.0, -24.6)
+    couch(S, -6.0, -14.0, yaw=180, length=3.0)
+    couch(S, 6.0, -14.0, yaw=180, length=3.0)
+    bean_bag(S, -3.4, -11.6)
+    bean_bag(S, 3.4, -11.6, color="#00cec9")
+    plant(S, -8.0, -25.0)
+    plant(S, 8.0, -25.0)
+    # Meeting room: the long table and chairs, laptops, the big screen, a whiteboard.
+    meeting_table(S, 12.6, -17.0, length=7.0, width=2.2, yaw=90)
+    for z in (-19.5, -17.0, -14.5):
+        office_chair(S, 10.9, z, yaw=90)
+        office_chair(S, 14.3, z, yaw=-90)
+    laptop(S, 12.1, 0.78, -18.4, yaw=90)
+    laptop(S, 13.1, 0.78, -15.6, yaw=-90)
+    tv_stand(S, 18.0, -25.4, w=6.0, h=2.4, screen="#7fd4ff")
+    credenza(S, 23.6, -25.4)
+    whiteboard(S, 26.3, -16.0, yaw=-90)
+    plant(S, 26.0, -9.2)
+
+
 BUILDERS = {
     "office": build_office, "parking_lot": build_parking_lot, "desk_pods": build_desk_pods,
     "meeting_room": build_meeting_room, "office_center": build_office_center,
     "james_desk": build_james_desk, "villiam_burginson": build_villiam_burginson,
+    "overworld": build_overworld,
+    "titan": lambda S: pickup(S, 0.0, 0.0, 0.0, "#4fc3ff"),  # Cam's Nissan Titan drive-by
+    "subaru": lambda S: car(S, 0.0, 0.0, 0.0, "#2e5cb8"),  # Sarah's Subaru drive-by
 }
+# Built and exported with the arenas, but not battle arenas: id -> assets/models/<folder>.
+EXTRA_IDS = {"overworld": "arenas", "titan": "props", "subaru": "props"}
 
 
 def build(arena_id):

@@ -119,8 +119,9 @@ def concept_prompt(model_id, photo=True):
     return who + extra + "Outfit: " + s["outfit"] + " " + STYLE
 
 # --------------------------------------------------------------------------- motions
-# The animations the game plays (docs/ART_PIPELINE.md, "Rig and animations").
-ANIMS = ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate"]
+# The animations the game plays (docs/ART_PIPELINE.md, "Rig and animations"), plus "run",
+# which only the trailer uses (the heroes charge the throne).
+ANIMS = ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate", "run"]
 
 # Motion spec keys:
 #   prompt    what Kimodo should do. Plain physical words work best ("A person ...").
@@ -149,6 +150,10 @@ SHARED_MOTIONS = {
         "prompt": "A person loses consciousness, their knees buckle, and they collapse backward "
                   "onto the floor and lie still.",
         "seconds": 3.0, "root": "free", "seed": 14,
+    },
+    "run": {
+        "prompt": "A person sprints forward at full speed, charging into battle.",
+        "seconds": 4.0, "loop": True, "cycle": True, "root": "inplace", "seed": 15,
     },
 }
 
@@ -236,21 +241,99 @@ HERO_MOTIONS = {
 }
 
 
+# --------------------------------------------------------------------------- bosses
+# Detailed bosses, built like the heroes (hero_mh.py, hero_looks.py) and exported to
+# assets/models/bosses. They're a bit larger than life, like Pokemon gym leaders.
+# "<boss>_remix" (cycle 2+) reuses its boss's body and motions with a changed outfit.
+BOSSES = {
+    "trucker": {"name": "The Angry Trucker", "height": 1.98},
+    "sales_guy": {"name": "The Mystery Sales Guy", "height": 1.93},
+    "guardian": {"name": "The Guardian of Tunes", "height": 1.74},
+    "ghost": {"name": "The Ghost of James Civelli", "height": 1.95},  # James's old-job self
+}
+
+BOSS_MOTIONS = {
+    "trucker": {  # Honk, Road Rage, Nissan-sized semi
+        "idle": {"prompt": "A big angry man stands with his arms crossed, shifting his weight and "
+                           "shaking his head in annoyance.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A man steps forward and throws a big right hook punch with his whole body.",
+                   "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A man angrily shakes his fist and yells, then points forward.",
+                 "seconds": 2.0, "root": "free"},
+        "victory": {"prompt": "A man pumps his fist in the air, then crosses his arms with a satisfied "
+                              "nod.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A man stomps forward, raises both fists over his head and slams them "
+                               "down hard.", "seconds": 3.0, "root": "free"},
+    },
+    "sales_guy": {  # aura farming, the pitch, coffee stirrer
+        "idle": {"prompt": "A confident man stands tall, straightening his tie and smoothing his "
+                           "jacket.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A man jabs his finger forward repeatedly while making a point.",
+                   "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A man spreads both arms wide like a showman presenting a deal.",
+                 "seconds": 2.0, "root": "free"},
+        "victory": {"prompt": "A man claps his hands once, points with both hands and winks.",
+                    "seconds": 4.0, "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A man slowly raises both arms, then spins around once and strikes a "
+                               "dramatic pose.", "seconds": 3.0, "root": "free"},
+    },
+    "guardian": {  # earworms, the boombox
+        "idle": {"prompt": "A woman bobs her head and sways her hips to music.", "seconds": 4.0,
+                 "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A woman swings her arm forward as if throwing something.", "seconds": 1.6,
+                   "root": "free"},
+        "cast": {"prompt": "A woman raises both arms over her head and dances.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A woman dances happily, waving her arms.", "seconds": 4.0, "loop": True,
+                    "root": "inplace"},
+        "ultimate": {"prompt": "A woman raises both arms and dances energetically in place, then strikes a "
+                               "big pose facing forward.", "seconds": 3.0, "root": "free"},
+    },
+    "ghost": {  # possession, the old job
+        "idle": {"prompt": "A man stands perfectly still with his arms crossed, slowly turning his head "
+                           "from side to side.", "seconds": 4.0, "loop": True, "root": "inplace"},
+        "attack": {"prompt": "A man lunges forward with both arms outstretched, trying to grab someone.",
+                   "seconds": 1.6, "root": "free"},
+        "cast": {"prompt": "A man slowly raises both arms high above his head.", "seconds": 2.0,
+                 "root": "free"},
+        "victory": {"prompt": "A man laughs, leaning back with his hands on his belly.", "seconds": 4.0,
+                    "loop": True, "root": "inplace"},
+        "ultimate": {"prompt": "A man spreads his arms wide and throws his head back.", "seconds": 3.0,
+                     "root": "free"},
+    },
+}
+
+
+def boss_of(model_id):
+    """The boss a remix belongs to ("trucker_remix" -> "trucker"), or None."""
+    b = model_id[:-len("_remix")] if model_id.endswith("_remix") else model_id
+    return b if b in BOSSES else None
+
+
+def boss_ids():
+    return list(BOSSES) + [b + "_remix" for b in BOSSES]
+
+
 def spec(model_id):
-    """The look spec for a hero or form id."""
-    return HEROES.get(model_id) or FORMS[model_id]
+    """The look spec for a hero, form or boss id."""
+    if model_id in HEROES or model_id in FORMS:
+        return HEROES.get(model_id) or FORMS[model_id]
+    return BOSSES[boss_of(model_id)]
 
 
 def motion_owner(model_id):
-    """Whose motions a model uses: forms share their hero's."""
-    return FORMS[model_id]["base"] if model_id in FORMS else model_id
+    """Whose motions a model uses: forms share their hero's, remixes their boss's."""
+    if model_id in FORMS:
+        return FORMS[model_id]["base"]
+    return boss_of(model_id) or model_id
 
 
 def motions(hero_id):
-    """Every animation for a hero: anim -> spec, with defaults filled in."""
+    """Every animation for a hero or boss: anim -> spec, with defaults filled in."""
     out = {}
     for anim in ANIMS:
-        m = HERO_MOTIONS.get(hero_id, {}).get(anim) or SHARED_MOTIONS.get(anim)
+        m = (HERO_MOTIONS.get(hero_id, {}).get(anim) or BOSS_MOTIONS.get(hero_id, {}).get(anim)
+             or SHARED_MOTIONS.get(anim))
         if m is None:
             continue
         m = dict(m)

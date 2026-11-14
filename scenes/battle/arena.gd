@@ -15,22 +15,23 @@ const ENEMY_SPOTS := [Vector3(2.3, 0, -0.3), Vector3(0.9, 0, 0.3), Vector3(3.7, 
 
 ## Per arena: sky / fog color, the floor color around the model, the sun
 ## [color, energy, pitch, yaw], ambient [color, energy], fog density, whether
-## glowing things bloom, and the battle platforms [rim, top].
+## glowing things bloom, and the battle platforms [rim, top]. Optional: "sky_top" (the
+## sky's color overhead; the horizon is "sky") and "rim" (the back light's color).
 const LOOKS := {
-	"office": {"label": "The Office", "sky": "#a9c9e8", "ground": "#55657e", "sun": ["#fff4e0", 0.95, -50, -35],
+	"office": {"label": "The Office", "sky": "#a9c9e8", "sky_top": "#4f86cf", "ground": "#55657e", "sun": ["#fff4e0", 0.95, -50, -35],
 		"ambient": ["#e8eeff", 0.36], "fog": 0.0015, "glow": true, "platform": ["#c9cfdb", "#8b9bb8"]},
-	"parking_lot": {"label": "Parking Lot", "sky": "#ffc98f", "ground": "#4a4d55", "sun": ["#ffd2a0", 1.25, -30, -60],
-		"ambient": ["#ffe2c4", 0.42], "fog": 0.002, "glow": true, "platform": ["#f5f5f0", "#5b5e68"]},
-	"desk_pods": {"label": "Desk Pods", "sky": "#b9d3f5", "ground": "#435a80", "sun": ["#ffffff", 0.95, -55, -30],
+	"parking_lot": {"label": "Parking Lot", "sky": "#ffc98f", "sky_top": "#6d83d0", "ground": "#4a4d55", "sun": ["#ffd2a0", 1.25, -30, -60],
+		"ambient": ["#ffe2c4", 0.42], "fog": 0.002, "glow": true, "platform": ["#f5f5f0", "#5b5e68"], "rim": "#ffd9b8"},
+	"desk_pods": {"label": "Desk Pods", "sky": "#b9d3f5", "sky_top": "#5b8fdb", "ground": "#435a80", "sun": ["#ffffff", 0.95, -55, -30],
 		"ambient": ["#e8eeff", 0.36], "fog": 0.0015, "glow": true, "platform": ["#c9d3e6", "#7f95bf"]},
-	"meeting_room": {"label": "Meeting Room", "sky": "#262b45", "ground": "#454c72", "sun": ["#d6deff", 0.95, -60, -20],
-		"ambient": ["#c4ceff", 0.5], "fog": 0.003, "glow": true, "platform": ["#a9b0cc", "#6a73a0"]},
-	"office_center": {"label": "Middle of the Office", "sky": "#f5bfe0", "ground": "#6a5090", "sun": ["#ffe6f5", 0.95, -50, -40],
-		"ambient": ["#ffe0f5", 0.38], "fog": 0.0015, "glow": true, "platform": ["#e5c9f5", "#9b78c4"]},
-	"james_desk": {"label": "James's Old Desk", "sky": "#6f83a9", "ground": "#4f6286", "sun": ["#b8c8ff", 0.75, -55, -25],
-		"ambient": ["#a8b8e8", 0.34], "fog": 0.008, "glow": true, "platform": ["#b9c3d6", "#7487a8"]},
-	"villiam_burginson": {"label": "Villiam Burginson's", "sky": "#ffd66b", "ground": "#c0392b", "sun": ["#ffe0b0", 1.05, -50, -30],
-		"ambient": ["#fff0d0", 0.42], "fog": 0.002, "glow": true, "platform": ["#ffd23f", "#f4f1e8"]},
+	"meeting_room": {"label": "Meeting Room", "sky": "#262b45", "sky_top": "#0d1024", "ground": "#454c72", "sun": ["#d6deff", 0.95, -60, -20],
+		"ambient": ["#c4ceff", 0.5], "fog": 0.003, "glow": true, "platform": ["#a9b0cc", "#6a73a0"], "rim": "#9fb4ff"},
+	"office_center": {"label": "Middle of the Office", "sky": "#f5bfe0", "sky_top": "#b57fd6", "ground": "#6a5090", "sun": ["#ffe6f5", 0.95, -50, -40],
+		"ambient": ["#ffe0f5", 0.38], "fog": 0.0015, "glow": true, "platform": ["#e5c9f5", "#9b78c4"], "rim": "#ffd1f0"},
+	"james_desk": {"label": "James's Old Desk", "sky": "#6f83a9", "sky_top": "#2c3958", "ground": "#4f6286", "sun": ["#b8c8ff", 0.75, -55, -25],
+		"ambient": ["#a8b8e8", 0.34], "fog": 0.008, "glow": true, "platform": ["#b9c3d6", "#7487a8"], "rim": "#a9d4ff"},
+	"villiam_burginson": {"label": "Villiam Burginson's", "sky": "#ffd66b", "sky_top": "#ff9f45", "ground": "#c0392b", "sun": ["#ffe0b0", 1.05, -50, -30],
+		"ambient": ["#fff0d0", 0.42], "fog": 0.002, "glow": true, "platform": ["#ffd23f", "#f4f1e8"], "rim": "#ffe6b0"},
 }
 
 var id := "office"
@@ -41,8 +42,20 @@ func build(arena_id: String) -> void:
 	var look: Dictionary = LOOKS[id]
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(look.sky)
+	# A sky with a gradient and a sun (through the windows, or overhead outside) instead of
+	# one flat color; it also gives shiny things something to reflect.
+	var sky_mat := ProceduralSkyMaterial.new()
+	var horizon := Color(look.sky)
+	sky_mat.sky_horizon_color = horizon.lightened(0.12)
+	sky_mat.sky_top_color = Color(look.get("sky_top", horizon.darkened(0.3).to_html()))
+	sky_mat.ground_horizon_color = horizon
+	sky_mat.ground_bottom_color = Color(look.ground).darkened(0.4)
+	sky_mat.sun_angle_max = 25.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(look.ambient[0])
 	e.ambient_light_energy = look.ambient[1]
@@ -50,11 +63,16 @@ func build(arena_id: String) -> void:
 	e.fog_enabled = true
 	e.fog_light_color = Color(look.sky)
 	e.fog_density = look.fog
+	e.fog_sky_affect = 0.3
 	if look.glow:
 		e.glow_enabled = true
 		e.glow_intensity = 0.7
 		e.glow_bloom = 0.05
 		e.glow_hdr_threshold = 1.0
+	# A light grade: a touch more contrast and color, for the bright Pokemon-style look.
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.06
+	e.adjustment_saturation = 1.12
 	env.environment = e
 	add_child(env)
 
@@ -63,7 +81,17 @@ func build(arena_id: String) -> void:
 	sun.light_energy = look.sun[1]
 	sun.rotation_degrees = Vector3(look.sun[2], look.sun[3], 0)
 	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 40.0  # crisper shadows on the stage
 	add_child(sun)
+	# A cool rim light from behind the stage, toward the camera: it outlines the characters
+	# so they stand out from the background.
+	var rim := DirectionalLight3D.new()
+	rim.light_color = Color(look.get("rim", "#d6e4ff"))
+	rim.light_energy = 0.55
+	rim.rotation_degrees = Vector3(-22, 170, 0)
+	rim.shadow_enabled = false
+	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY  # no second sun in the sky
+	add_child(rim)
 
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()

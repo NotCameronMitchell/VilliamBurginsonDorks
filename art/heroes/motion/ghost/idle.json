@@ -1,0 +1,11 @@
+{
+  "hero": "ghost",
+  "anim": "idle",
+  "prompt": "A man stands perfectly still with his arms crossed, slowly turning his head from side to side.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

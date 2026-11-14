@@ -1,0 +1,11 @@
+{
+  "hero": "sales_guy",
+  "anim": "victory",
+  "prompt": "A man claps his hands once, points with both hands and winks.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

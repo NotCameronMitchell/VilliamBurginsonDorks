@@ -31,14 +31,28 @@ SHOTS = [
     ("end", 60.0, LENGTH),
 ]
 
-# Quick cuts inside the montage: (who, animation, camera side)
+# Quick cuts inside the montage: (who, animation, camera side, seconds of the move to skip
+# so its big moment lands inside the 0.75 s cut). Each is a move that reads in a glance.
 MONTAGE = [
-    ("mason", "attack", 1), ("ghost", "hit", -1), ("james", "ultimate", 1), ("cam", "cast", -1),
-    ("ghost", "cast", 1), ("cole", "attack", -1), ("sam", "ultimate", 1), ("sarah", "attack", -1),
+    ("mason", "attack", 1, 0.35),    # the kick
+    ("ghost", "hit", -1, 0.1),
+    ("james", "ultimate", 1, 0.2),   # chest pound
+    ("cam", "attack", -1, 0.3),      # magic blast
+    ("ghost", "attack", 1, 0.25),    # the lunge
+    ("cole", "cast", -1, 0.3),       # arguing, pointing
+    ("sam", "attack", 1, 0.45),      # the overhead slam
+    ("sarah", "attack", -1, 0.3),    # spin and strike
 ]
 
+# Real gameplay, recorded from the game itself with Godot's Movie Maker (make_trailer.ps1
+# -Step gameplay). Each entry covers one montage cut (0.75 s) with the recording from that
+# frame on: (montage cut index, first frame of the recording). Every other cut is gameplay,
+# so the trailer shows the actual game between the cinematic shots.
+GAMEPLAY_CUTS = [(1, 10), (3, 96), (5, 240), (7, 192)]  # boss banner, Transfer to UW, Nissan Titan, hits
+
 HEROES = ["mason", "james", "cole", "cam", "sam", "sarah"]
-HERO_SHOT_ANIM = {"mason": "attack", "james": "ultimate", "cole": "attack", "cam": "cast",
+# Each hero's solo shot: the move that sells their tagline (Mason shows off his ring).
+HERO_SHOT_ANIM = {"mason": "ultimate", "james": "ultimate", "cole": "ultimate", "cam": "attack",
                   "sam": "cast", "sarah": "attack"}
 HERO_TAGLINE = {  # roles from scripts/data/hero_data.gd
     "mason": "Beastmaster. Wife, btw.",

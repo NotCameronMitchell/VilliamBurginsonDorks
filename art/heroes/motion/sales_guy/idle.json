@@ -1,0 +1,11 @@
+{
+  "hero": "sales_guy",
+  "anim": "idle",
+  "prompt": "A confident man stands tall, straightening his tie and smoothing his jacket.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

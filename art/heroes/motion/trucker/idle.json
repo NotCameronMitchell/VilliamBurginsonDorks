@@ -1,0 +1,11 @@
+{
+  "hero": "trucker",
+  "anim": "idle",
+  "prompt": "A big angry man stands with his arms crossed, shifting his weight and shaking his head in annoyance.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

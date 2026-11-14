@@ -1,0 +1,11 @@
+{
+  "hero": "trucker",
+  "anim": "cast",
+  "prompt": "A man angrily shakes his fist and yells, then points forward.",
+  "seconds": 2.0,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 60,
+  "joints": 77,
+  "fps": 30
+}

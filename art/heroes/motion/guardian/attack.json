@@ -1,0 +1,11 @@
+{
+  "hero": "guardian",
+  "anim": "attack",
+  "prompt": "A woman swings her arm forward as if throwing something.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,0 +1,11 @@
+{
+  "hero": "sales_guy",
+  "anim": "attack",
+  "prompt": "A man jabs his finger forward repeatedly while making a point.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
+}

@@ -1,12 +1,15 @@
 # Makes the trailer end to end:
-#   powershell -File art/trailer/make_trailer.ps1 [-Out DIR] [-Res 1280x720] [-Samples 32] [-Voice bm_george] [-Step all|vo|music|frames|edit|stills]
-# 1. vo:     the narration (timeline.py NARRATION), spoken by Kokoro (voice.py) if it's set up
-#            in $env:KOKORO_HOME (default ~\.vbd\kokoro: .venv with kokoro-onnx + soundfile, and
-#            models\ with kokoro-v1.0.onnx and voices-v1.0.bin); otherwise Windows' built-in voice
-# 2. music:  the soundtrack, synthesized, with the narration mixed in (music.py; needs Python
-#            with numpy and scipy: set $env:VBD_PYTHON, or the Kimodo venv is used, or "python")
-# 3. frames: every frame rendered in Blender (trailer.py; resumable)
-# 4. edit:   titles, subtitles, fades and the soundtrack cut together into DIR\trailer.mp4
+#   powershell -File art/trailer/make_trailer.ps1 [-Out DIR] [-Res 1280x720] [-Samples 32] [-Voice bm_george] [-Step all|vo|music|gameplay|frames|edit|stills]
+# 1. vo:       the narration (timeline.py NARRATION), spoken by Kokoro (voice.py) if it's set up
+#              in $env:KOKORO_HOME (default ~\.vbd\kokoro: .venv with kokoro-onnx + soundfile, and
+#              models\ with kokoro-v1.0.onnx and voices-v1.0.bin); otherwise Windows' built-in voice
+# 2. music:    the soundtrack, synthesized, with the narration mixed in (music.py; needs Python
+#              with numpy and scipy: set $env:VBD_PYTHON, or the Kimodo venv is used, or "python")
+# 3. gameplay: a fight against the ghost, recorded from the game itself with Godot's Movie Maker
+#              into DIR\gameplay (Godot from $env:GODOT, PATH or winget). timeline.py
+#              GAMEPLAY_CUTS picks which moments go into the montage.
+# 4. frames:   every frame rendered in Blender (trailer.py; resumable)
+# 5. edit:     titles, subtitles, fades, gameplay and the soundtrack cut together into DIR\trailer.mp4
 param(
     [string]$Out = (Join-Path ([Environment]::GetFolderPath("MyVideos")) "VilliamBurginsonDorks_trailer"),
     [string]$Res = "1280x720",
@@ -71,6 +74,28 @@ if ($Step -in @("all", "music")) {
     }
     $pitch = $(if ($useKokoro) { "0.92" } else { "0.89" })  # how much to deepen the narration
     & $py (Join-Path $here "music.py") --vo (Join-Path $Out "vo") --pitch $pitch --out (Join-Path $Out "trailer_audio.wav")
+}
+if ($Step -in @("all", "gameplay")) {
+    $godot = $env:GODOT
+    if (-not $godot) { $c = Get-Command godot -ErrorAction SilentlyContinue; if ($c) { $godot = $c.Source } }
+    if (-not $godot) {
+        $godot = Get-ChildItem (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages") -Recurse -Filter "Godot_v4*_console.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
+    if ($godot) {
+        $gdir = Join-Path $Out "gameplay"
+        Remove-Item -Recurse -Force $gdir -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force $gdir | Out-Null
+        $w, $h = $Res -split "x"
+        $root = (Resolve-Path (Join-Path $here "..\..")).Path
+        # 480 frames at 24 fps: the ghost's entrance and the heroes' ultimates (ready from turn 1).
+        & $godot --path $root --write-movie (Join-Path $gdir "gameplay.png") --fixed-fps 24 --resolution "${w}x${h}" `
+            --quit-after 480 -- --fight=ghost --party=james,cole,cam,sam --auto --skip-story --ult-first --mute `
+            --save-dir=user://trailer_movie/ 2>&1 | Out-Null
+        Write-Host "gameplay: $((Get-ChildItem $gdir -Filter *.png).Count) frames in $gdir"
+    } else {
+        Write-Host "gameplay: Godot not found (set `$env:GODOT); the montage stays all cinematic"
+    }
 }
 if ($Step -in @("all", "frames")) { Run-Blender @("--stage", "frames") }
 if ($Step -eq "stills") { Run-Blender @("--stage", "stills") }

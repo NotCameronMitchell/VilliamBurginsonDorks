@@ -1243,8 +1243,11 @@ def main():
     if skins:
         import hero_looks as L
         ids = list(L.SKINS) if skins is True or skins == "all" else skins.split(",")
+    bosses = bool(arg("--bosses")) or all(H.boss_of(i) for i in ids)  # bosses and remixes
+    if arg("--bosses") and not only:
+        ids = H.boss_ids()
     motions_dir = arg("--motions") or os.path.join(ROOT, "art", "heroes", "motion")
-    out_dir = arg("--out") or os.path.join(ROOT, "assets", "models", "heroes")
+    out_dir = arg("--out") or os.path.join(ROOT, "assets", "models", "bosses" if bosses else "heroes")
     render_dir = arg("--render")
     mode = "mannequin" if arg("--mannequin") else ("test-body" if arg("--test-body") else
                                                    ("procedural" if arg("--procedural") else

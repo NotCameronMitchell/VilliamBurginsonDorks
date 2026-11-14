@@ -79,9 +79,55 @@ FORM_MH = {
 }
 
 
+# Bosses: made-up people, except the ghost, who is James's old-job self (James's face, a
+# heavier build). Remixes ("<boss>_remix") use their boss's body.
+BOSS_MH = {
+    "trucker": {  # big, bearded, scowling
+        "phenotype": {"gender": 1.0, "age": 0.68, "muscle": 0.62, "weight": 0.9, "height": 0.85,
+                      "proportions": 0.45},
+        "targets": {"head-square": 0.7, "head-fat-incr": 0.6, "neck-scale-horiz-incr": 0.8,
+                    "chin-width-incr": 0.5, "nose-volume-incr": 0.45, "nose-scale-horiz-incr": 0.3,
+                    "eyebrows-trans-down": 0.5, "mouth-angles-down": 0.6, "l-eye-scale-decr": 0.2,
+                    "r-eye-scale-decr": 0.2},
+        "skin": "middleage_caucasian_male", "eyes": "brown", "eyebrows": "eyebrow004", "eyelashes": "eyelashes01",
+        "hair": "short01", "hair_color": "#4a3020",  # short, so none of it pokes out under the cap
+    },
+    "sales_guy": {  # tall, slick, a salesman's grin
+        "phenotype": {"gender": 1.0, "age": 0.55, "muscle": 0.5, "weight": 0.45, "height": 0.9,
+                      "proportions": 0.75},
+        "targets": {"head-oval": 0.5, "head-square": 0.2, "chin-prominent-incr": 0.3,
+                    "mouth-scale-horiz-incr": 0.35, "mouth-angles-up": 0.9, "eyebrows-trans-up": 0.25,
+                    "l-cheek-bones-incr": 0.3, "r-cheek-bones-incr": 0.3},
+        "skin": "young_caucasian_male", "eyes": "blue", "eyebrows": "eyebrow002", "eyelashes": "eyelashes01",
+        "hair": "short04", "hair_color": "#151515",
+    },
+    "guardian": {  # bright and cheerful, always has music on
+        "phenotype": {"gender": 0.0, "age": 0.5, "muscle": 0.5, "weight": 0.5, "height": 0.6,
+                      "proportions": 0.7, "cupsize": 0.5, "firmness": 0.55},
+        "targets": {"head-oval": 0.5, "l-eye-scale-incr": 0.3, "r-eye-scale-incr": 0.3,
+                    "mouth-angles-up": 0.8, "mouth-lowerlip-volume-incr": 0.3, "nose-scale-horiz-decr": 0.15},
+        "skin": "young_caucasian_female", "eyes": "green", "eyebrows": "eyebrow010", "eyelashes": "eyelashes02",
+        "hair": "ponytail01", "hair_color": "#7b4a2a",
+    },
+}
+BOSS_FORM_MH = {
+    "ghost": ("james", {"phenotype": {"gender": 1.0, "age": 0.62, "muscle": 0.55, "weight": 0.75,
+                                      "height": 0.62, "proportions": 0.55}}),
+}
+
+
 def get(model_id):
+    if model_id.endswith("_remix"):
+        model_id = model_id[:-len("_remix")]
     if model_id in MH:
         return dict(MH[model_id])
+    if model_id in BOSS_MH:
+        return dict(BOSS_MH[model_id])
+    if model_id in BOSS_FORM_MH:
+        base, over = BOSS_FORM_MH[model_id]
+        out = dict(MH[base])
+        out.update(over)
+        return out
     base, over = FORM_MH[model_id]
     out = dict(MH[base])
     out.update(over)

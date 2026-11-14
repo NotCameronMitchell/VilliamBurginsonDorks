@@ -28,6 +28,8 @@ sys.path.insert(0, HERE)
 import timeline as TL  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "art", "tools"))
+import hero_specs as HS  # noqa: E402  (the characters' real heights)
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 
 
@@ -46,7 +48,13 @@ FONT_TEXT = r"C:\Windows\Fonts\segoeui.ttf"
 FONT_LIGHT = r"C:\Windows\Fonts\segoeuil.ttf"
 HERO_COLORS = {"mason": "#ff4f6d", "james": "#ffd23f", "cole": "#ff9a1f", "cam": "#4fc3ff",
                "sam": "#9b5cff", "sarah": "#ff5fa2"}
-ANIMS = ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate"]
+ANIMS = ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate", "run"]
+# How fast the walk and run clips move at 1x, in meters per second, for a 1.75 m person
+# (measured from the Kimodo motions). A character's clip is played faster or slower so its
+# feet match how fast it actually travels, instead of sliding.
+WALK_SPEED = 1.85
+RUN_SPEED = 3.55
+GHOST_SCALE = 1.15  # the ghost towers over the heroes
 random.seed(3)
 
 
@@ -144,11 +152,22 @@ def ghost_mat(src=None):
     Hair, brows and lashes keep their texture's transparency."""
     img, alpha = None, False
     if src is not None and src.use_nodes:
-        for n in src.node_tree.nodes:
+        # The image behind the base color, even through a tint node (the detailed ghost's
+        # materials multiply their texture by a pale blue).
+        bsdf = next((n for n in src.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        stack = [l.from_node for l in bsdf.inputs["Base Color"].links] if bsdf else []
+        seen = set()
+        while stack and img is None:
+            n = stack.pop()
+            if n.name in seen:
+                continue
+            seen.add(n.name)
             if n.type == "TEX_IMAGE" and n.image:
-                if any(l.to_socket.name == "Base Color" for l in n.outputs["Color"].links):
-                    img = n.image
-                    alpha = any(l.to_socket.name == "Alpha" for l in n.outputs["Alpha"].links)
+                img = n.image
+                alpha = bool(bsdf.inputs["Alpha"].links)
+            else:
+                for inp in n.inputs:
+                    stack += [l.from_node for l in inp.links]
     keyname = (img.name if img else "", alpha)
     if keyname in _ghost_mats:
         return _ghost_mats[keyname]
@@ -567,7 +586,16 @@ class Actor:
         self.root.scale = self.root.scale * scale
         self.home = Vector((0, -200, 0))
         bpy.context.view_layer.update()
-        log("actor %s: %d meshes, anims %s" % (name, len(self.meshes), sorted(self.acts)))
+        # Standing height, for matching the walk and run to how fast they move and for framing:
+        # the character's real height at game scale (measuring the imported meshes in Blender's
+        # rest pose came out wrong for these rigs).
+        self.height = HS.spec(name)["height"] * HS.GAME_SCALE * scale
+        log("actor %s: %.2f m, %d meshes, anims %s" % (name, self.height, len(self.meshes), sorted(self.acts)))
+
+    def gait(self, anim, mps):
+        """The playback speed that makes the walk or run clip travel at mps (no sliding)."""
+        ref = (RUN_SPEED if anim == "run" else WALK_SPEED) * self.height / 1.75
+        return mps / max(ref, 0.1)
 
     def play(self, anim, t, repeat=1.0, speed=1.0, hold=False, blend=4):
         act = self.acts.get(anim)
@@ -660,7 +688,7 @@ class Actor:
 
 
 def make_ghost(path):
-    g = Actor("ghost", path, scale=1.25)
+    g = Actor("ghost", path, scale=GHOST_SCALE)
     for o in g.meshes:
         for i, slot in enumerate(o.material_slots):
             o.data.materials[i] = ghost_mat(slot.material)
@@ -683,28 +711,42 @@ def make_ghost(path):
                      eye_m, smooth=True)
             attach(s, g.arm, "mixamorig:Head")
     # Ice crown on top of the head (the Head bone ends near the eyes, so use the meshes' top),
-    # ice sword in the right hand.
-    head = g.arm.pose.bones["mixamorig:Head"]
-    top = g.arm.matrix_world @ head.tail
-    top_z = max((o.matrix_world @ Vector(c)).z for o in g.meshes for c in o.bound_box)
-    top = Vector((top.x, top.y + 0.01, top_z - 0.035 * g.root.scale[0]))
-    crown_m = mat("crown", (0.7, 0.92, 1.0), 0.05, emit=(0.4, 0.85, 1.0), strength=3.0)
+    # ice sword in the right hand. Everything is measured in the rest pose, because attach()
+    # parents against the rest pose: measuring the posed rig left them floating off his head
+    # and hand once he moved.
+    g.arm.data.pose_position = "REST"
+    bpy.context.view_layer.update()
     sc = g.root.scale[0]
+    head = g.arm.pose.bones["mixamorig:Head"]
+    ht_head = g.arm.matrix_world @ head.tail
+    top_z = max((o.matrix_world @ Vector(c)).z for o in g.meshes for c in o.bound_box)
+    top = Vector((ht_head.x, ht_head.y + 0.01 * sc, top_z - 0.035 * sc))
+    crown_m = mat("crown", (0.7, 0.92, 1.0), 0.05, emit=(0.4, 0.85, 1.0), strength=3.0)
+    crown = []
     for k in range(9):
         a = k * 2 * math.pi / 9
         h = (0.07 if k % 2 else 0.12) * sc
-        c = prim("cone", "crown_%d" % k, (top.x + math.cos(a) * 0.085 * sc, top.y + math.sin(a) * 0.085 * sc,
-                                          top.z - 0.03 * sc + h), (0.016 * sc, 0.016 * sc, h), crown_m)
-        attach(c, g.arm, "mixamorig:Head")
+        crown.append(prim("cone", "crown_%d" % k, (top.x + math.cos(a) * 0.085 * sc, top.y + math.sin(a) * 0.085 * sc,
+                                                   top.z - 0.03 * sc + h), (0.016 * sc, 0.016 * sc, h), crown_m))
     hand = g.arm.pose.bones["mixamorig:RightHand"]
     hh, ht = g.arm.matrix_world @ hand.head, g.arm.matrix_world @ hand.tail
-    d = (ht - hh).normalized()
-    grip = hh + (ht - hh) * 0.6
+    d = (ht - hh).normalized()  # along the hand, toward the fingers
+    # A fist holds a sword square to the hand, the blade coming out of the thumb side.
+    thumb = g.arm.pose.bones.get("mixamorig:RightHandThumb1")
+    blade = Vector((0.0, -1.0, 0.0))
+    if thumb is not None:
+        tv = (g.arm.matrix_world @ thumb.head) - hh
+        tv = tv - d * tv.dot(d)
+        if tv.length > 1e-4:
+            blade = tv.normalized()
+    grip = hh + (ht - hh) * 0.5
     blade_m = mat("blade", (0.75, 0.95, 1.0), 0.03, emit=(0.4, 0.85, 1.0), strength=2.5)
-    rot = d.to_track_quat("Z", "Y").to_euler()
-    parts = [prim("cube", "sword_blade", grip + d * 0.62 * sc, (0.022 * sc, 0.006 * sc, 0.55 * sc), blade_m, rot=rot),
-             prim("cube", "sword_guard", grip + d * 0.06 * sc, (0.11 * sc, 0.02 * sc, 0.018 * sc), crown_m, rot=rot),
-             prim("cyl", "sword_grip", grip - d * 0.04 * sc, (0.016 * sc, 0.016 * sc, 0.09 * sc), crown_m, rot=rot)]
+    rot = blade.to_track_quat("Z", "Y").to_euler()
+    parts = [prim("cube", "sword_blade", grip + blade * 0.62 * sc, (0.022 * sc, 0.006 * sc, 0.55 * sc), blade_m, rot=rot),
+             prim("cube", "sword_guard", grip + blade * 0.06 * sc, (0.11 * sc, 0.02 * sc, 0.018 * sc), crown_m, rot=rot),
+             prim("cyl", "sword_grip", grip - blade * 0.03 * sc, (0.016 * sc, 0.016 * sc, 0.06 * sc), crown_m, rot=rot)]
+    for c in crown:
+        attach(c, g.arm, "mixamorig:Head")
     for p in parts:
         attach(p, g.arm, "mixamorig:RightHand")
     g.arm.data.pose_position = "POSE"
@@ -836,7 +878,8 @@ def build():
     build_snow()
     heroes_dir = os.path.join(ROOT, "assets", "models", "heroes")
     actors = {h: Actor(h, os.path.join(heroes_dir, h + ".glb")) for h in TL.HEROES}
-    ghost = make_ghost(os.path.join(heroes_dir, "james.glb"))
+    # The ghost is the game's detailed boss: James's old-job self, with his own motions.
+    ghost = make_ghost(os.path.join(ROOT, "assets", "models", "bosses", "ghost.glb"))
     # The ghost broods: arms down at his sides, head bowed, then he looks up as his eyes flare.
     down = {"LeftArm": ("y", 34), "RightArm": ("y", -34), "LeftForeArm": ("y", 8), "RightForeArm": ("y", -8)}
     bowed = dict(down, Head=("x", 22), Neck=("x", 8), Spine2=("x", 4))
@@ -850,12 +893,12 @@ def build():
     # ------------------------------------------------------------------ the ghost
     gpos = Vector((0, 23.0, 0.6))
     ghost.at(0, gpos)
-    ghost.play("ultimate", 17.45)
+    ghost.play("cast", 17.45)  # he rises and raises the sword (both arms up, slowly)
     burst("ghost_burst1", gpos + Vector((0, -0.4, 1.6)), 17.9, (0.45, 0.85, 1.0, 1), 260, 8.0)
     ring("ghost_ring1", gpos + Vector((0, 0, 0.05)), 17.9, (0.45, 0.85, 1.0, 1), 4.0, 0.8)
     for tt, s in ((14.6, 8.0), (15.5, 60.0), (17.3, 30.0), (21.0, 10.0)):
         key_socket(ghost.eye_em.inputs["Strength"], F(tt), s, "BEZIER")
-    ghost.play("ultimate", 41.1)
+    ghost.play("ultimate", 41.1)  # the ice blast: arms flung wide, head thrown back
     burst("ghost_burst2", gpos + Vector((0, -0.6, 1.6)), 42.3, (0.45, 0.85, 1.0, 1), 420, 13.0, 0.04, 30)
     ring("ghost_ring2", gpos + Vector((0, 0, 0.05)), 42.3, (0.45, 0.85, 1.0, 1), 6.0, 0.7)
     # ------------------------------------------------------------------ heroes
@@ -902,19 +945,20 @@ def build():
     m0, m1 = 36.4, 41.0
     form = {"mason": (0.0, 0.0), "james": (-1.3, 0.5), "cole": (1.3, 0.5), "cam": (-2.5, 1.1), "sarah": (2.5, 1.1),
             "sam": (0.0, 1.5)}
+    march = 7.1  # meters walked; the walk plays at the speed that matches it, so feet don't slide
     for h, (fx, fy) in form.items():
         a = actors[h]
-        a.at(m0, Vector((fx, -9.0 - fy, 0)), math.pi, interp="LINEAR")  # walking toward +Y
+        a.at(m0, Vector((fx, -4.2 - march - fy, 0)), math.pi, interp="LINEAR")  # walking toward +Y
         a.at(m1, Vector((fx, -4.2 - fy, 0)), math.pi)
-        a.play("walk", m0, repeat=8, speed=0.95)
+        a.play("walk", m0, repeat=10, speed=a.gait("walk", march / (m1 - m0)))
         a.hide(m1 + 0.05)
     # The montage.
     shots_m = []
     cut = (TL.SHOTS[13][2] - TL.SHOTS[13][1]) / len(TL.MONTAGE)
-    for i, (who, anim, side) in enumerate(TL.MONTAGE):
+    for i, (who, anim, side, skip) in enumerate(TL.MONTAGE):
         t0 = TL.SHOTS[13][1] + i * cut
         if who == "ghost":
-            ghost.play(anim, t0 - 0.15)
+            ghost.play(anim, t0 - skip)
             if anim == "hit":
                 burst("mont_hit_%d" % i, gpos + Vector((0, -0.3, 1.5)), t0 + 0.15, (1.0, 0.9, 0.6, 1), 140, 6.0, 0.02, 20,
                       shard=False)
@@ -923,7 +967,7 @@ def build():
         else:
             a = actors[who]
             a.at(t0, stage, 0.0)
-            a.play(anim, t0 - 0.2, speed=1.3)
+            a.play(anim, t0 - skip, speed=1.3)  # `skip` lands the move's big moment inside the cut
             col = hexc(HERO_COLORS[who])
             flash("mont_flash_%d" % i, stage + Vector((0, 0.6, 1.5)), t0 + 0.3, col[:3], 3000, 0.4)
             ring("mont_ring_%d" % i, stage + Vector((0, 0, 0.04)), t0 + 0.25, col, 2.4, 0.45)
@@ -935,7 +979,7 @@ def build():
         a = actors[h]
         a.at(c0, Vector((fx * 0.8, 9.0 - fy, 0)), math.pi, interp="LINEAR")  # charging toward +Y
         a.at(c1, Vector((fx * 0.5, 17.5 - fy, 0)), math.pi)
-        a.play("walk", c0, repeat=10, speed=1.9)
+        a.play("run", c0, repeat=12, speed=a.gait("run", 8.5 / (c1 - c0)))
         a.play("attack", c1 - 0.9, speed=1.4)
         a.hide(c1 + 0.05)
     ghost.play("attack", c1 - 1.1, speed=1.2)
@@ -946,7 +990,7 @@ def build():
     S = {name: (a, b) for name, a, b in TL.SHOTS}
     camera("cam_office", *S["office"], (0.4, -27, 1.7), (0.0, -12, 1.5), (0, -6, 1.6), (0, 10, 1.7), 24)
     camera("cam_throne", *S["throne"], (0.6, 6, 1.5), (0.2, 12.5, 1.7), (0, 23, 2.2), (0, 23, 2.4), 32)
-    hz = gpos.z + 1.78 * 0.95 * 1.25 * 0.93
+    hz = gpos.z + ghost.height * 0.93  # eye height
     camera("cam_ghost_face", *S["ghost_face"], (0.3, gpos.y - 2.1, hz + 0.02), (0.12, gpos.y - 1.55, hz),
            (0, gpos.y, hz - 0.03), (0, gpos.y, hz - 0.01), 60, fstop=2.8)
     camera("cam_ghost_rise", *S["ghost_rise"], (2.2, gpos.y - 4.2, 0.5), (1.6, gpos.y - 4.6, 0.7),
@@ -1173,6 +1217,21 @@ def stage_edit():
     audio = arg("--audio")
     if audio and os.path.exists(audio):
         strips.new_sound("audio", audio, 9, 1)
+    # Real gameplay over every other montage cut (recorded by the game; see TL.GAMEPLAY_CUTS).
+    gdir = os.path.join(OUT, "gameplay")
+    gfiles = sorted(f for f in os.listdir(gdir) if f.endswith(".png")) if os.path.isdir(gdir) else []
+    if gfiles:
+        m0, m1 = next((a, b) for name, a, b in TL.SHOTS if name == "montage")
+        cut = (m1 - m0) / len(TL.MONTAGE)
+        for i, start in TL.GAMEPLAY_CUTS:
+            n = F(m0 + (i + 1) * cut) - F(m0 + i * cut)
+            sel = gfiles[start:start + n]
+            if len(sel) < n:
+                continue
+            g = strips.new_image("gameplay_%d" % i, os.path.join(gdir, sel[0]), 2, F(m0 + i * cut))
+            for f in sel[1:]:
+                g.elements.append(f)
+        log("gameplay cuts: %d (from %d recorded frames)" % (len(TL.GAMEPLAY_CUTS), len(gfiles)))
     fonts = {k: bpy.data.fonts.load(p) for k, p in (("title", FONT_TITLE), ("text", FONT_TEXT), ("light", FONT_LIGHT))
              if os.path.exists(p)}
     scale = h / 720.0

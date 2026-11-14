@@ -1,0 +1,11 @@
+{
+  "hero": "guardian",
+  "anim": "idle",
+  "prompt": "A woman bobs her head and sways her hips to music.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

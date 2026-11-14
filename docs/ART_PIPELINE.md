@@ -2,8 +2,9 @@
 
 ## Detailed heroes
 
-The six heroes and their two ultimate forms are realistic, Pokemon Scarlet/Violet-style
-people, built in Blender with free tools. Bosses and minions are still the chibi models below.
+The six heroes, their skins, their two ultimate forms and four of the bosses are realistic,
+Pokemon Scarlet/Violet-style people, built in Blender with free tools. The Copilot, the
+burger crew, the Boombox and the minions are still the chibi models below.
 
 | Step | Tool | Output |
 |---|---|---|
@@ -32,6 +33,22 @@ powershell -File art/tools/heroes.ps1 motions [--only cole]
 - `motions` runs Kimodo and needs its text encoder (see "Kimodo setup" below). It only remakes
   motions whose prompt, length or seed changed in `hero_specs.py`; `--force` remakes them all.
   Then run `assemble` again.
+
+**Bosses** are built the same way: the Angry Trucker, the Mystery Sales Guy, the Guardian of
+Tunes and the Ghost of James Civelli, plus their remixes.
+- **Who:** made-up people in `hero_mh.BOSS_MH`. The ghost is James's old-job self, so he has
+  James's face (`BOSS_FORM_MH`).
+- **Outfits:** `hero_looks.BOSS_LOOKS`, which follow the chibi designs in `characters.py`.
+  Remixes change them in `REMIX_LOOKS`.
+- **Motions:** heights and prompts are in `hero_specs.BOSSES` and `BOSS_MOTIONS`. A remix
+  uses its boss's body and motions.
+
+```
+powershell -File art/tools/heroes.ps1 motions --only trucker,sales_guy,guardian,ghost
+powershell -File art/tools/heroes.ps1 assemble --makehuman --bosses    # writes assets/models/bosses
+```
+
+The Copilot Grim Reaper, the burger crew, the Boombox and the minions are still chibi models.
 
 **One-time setup:** run `art/tools/makehuman_setup.py` in Blender
 (`blender -b -P art/tools/makehuman_setup.py -- --log C:\temp\mh.log`). It installs MPFB into a
@@ -111,10 +128,13 @@ JPEG textures, so WebP is used instead.
 
 Every character (85 models) is built by a Python script running in Blender:
 
-- **Hero skins.** The 6 base heroes and 2 forms are the detailed models above, so a full
-  rebuild skips them unless you pass `--chibi-heroes`.
-- **Bosses and remixes.**
+- **Hero skins.** The heroes, forms and skins are the detailed models above.
+- **Bosses and remixes.** The trucker, sales guy, guardian and ghost (and their remixes) are
+  the detailed models above too.
 - **Minions.**
+
+A full rebuild skips everything that has a detailed model, unless you pass `--chibi-heroes`.
+The chibis still go in the lineup `.blend`.
 
 Each model is a low-poly chibi on a shared 8-bone skeleton, with all the animations
 the game plays.
@@ -167,11 +187,20 @@ office, the five boss areas and Villiam Burginson's.
   - **Villiam Burginson's:** the counter, kitchen, booths and the glowing Village
     Sauce.
 - **Lighting and platforms:** the battle screen adds per-arena lighting, fog, glow
-  and battle platforms (`LOOKS` in `scenes/battle/arena.gd`).
+  and battle platforms (`LOOKS` in `scenes/battle/arena.gd`):
+  - a gradient sky (`sky`, `sky_top`)
+  - a cool rim light from behind the stage (`rim`)
+  - a light color grade (see [STYLE.md](STYLE.md))
+- **The office overworld:** `overworld` builds the whole office floor from the same
+  props, in the layout of `scenes/overworld/office_map.gd`. That script loads it and keeps
+  its own boxes as invisible collision, so the two layouts must stay in step.
+- **Props:** `titan` and `subaru` are the cars for Cam's and Sarah's drive-by ultimates
+  (`assets/models/props/`).
 
 ```
-powershell -File art/tools/run_blender.ps1 --arenas-only                 # all arenas
+powershell -File art/tools/run_blender.ps1 --arenas-only                 # all arenas, the office and props
 powershell -File art/tools/run_blender.ps1 --arenas-only --only parking_lot
+powershell -File art/tools/run_blender.ps1 --arenas-only --only overworld,titan,subaru
 ```
 
 **Where scenery shows on screen:**
@@ -305,6 +334,15 @@ powershell -File art/trailer/make_trailer.ps1 -Step stills          # one still 
 - **`trailer.py`:** builds the set and the ghost, and animates the heroes with their game
   animations. It renders the frames, then cuts in the titles, subtitles, fades and sound
   with Blender's video editor.
+  - **The ghost** is the game's detailed boss model, with his own motions: he raises the
+    sword with his cast and flings his arms wide for the ice blast. The crown and sword
+    are placed in the rest pose, then parented to his head and hand.
+  - **Walks and runs** play at the speed that matches how far each character actually
+    travels (`Actor.gait`), so feet don't slide. The charge uses a Kimodo `run` clip that
+    only the trailer uses.
+- **Gameplay** (`-Step gameplay`): Godot's Movie Maker records a fight against the ghost
+  from the game itself, frame by frame, into `gameplay/`. `GAMEPLAY_CUTS` in `timeline.py`
+  picks the moments that cover every other montage cut, so the trailer shows the real game.
 
 ## Music and sounds
 

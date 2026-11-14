@@ -17,6 +17,7 @@ turn-based party battler with a Pokemon-style 3D look.
 
 - [Game design](docs/GAME_DESIGN.md): bosses, balance, UI, achievements and skins
 - [Art pipeline](docs/ART_PIPELINE.md): how to build and export models from Blender
+- [Style guide](docs/STYLE.md): the look, feel and sound new pieces should match
 
 ## Layout
 
@@ -58,19 +59,21 @@ In battle:
   office's **Menu** has music and sounds too.
 
 **Heroes** are detailed, realistic models of the real people, built in Blender with free
-tools:
+tools. So are their skins, their forms, and four of the bosses (the Angry Trucker, the
+Mystery Sales Guy, the Guardian of Tunes and the Ghost of James Civelli) with their remixes.
 - **Bodies and faces:** MakeHuman builds the bodies, faces, hair and rig, through the MPFB
   add-on.
-- **Clothes:** generated from each hero's own body, so a skin is just data.
+- **Clothes:** generated from each character's own body, so a skin is just data.
 - **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts.
 
-Build them with `powershell -File art/tools/heroes.ps1 assemble --makehuman`. See "Detailed
-heroes" in [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
+Build them with `powershell -File art/tools/heroes.ps1 assemble --makehuman` (heroes),
+`--skins all` (skins) or `--bosses` (bosses). See "Detailed heroes" in
+[docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
 
 **Everything else** is low-poly 3D models built in Blender by
 `art/tools/make_models.py`:
-- **Characters:** hero skins, bosses, remixes and minions, with idle, attack, cast, hit,
-  stunned, faint, victory and ultimate animations.
+- **Characters:** the Copilot Grim Reaper, the burger crew, the Boombox and the minions,
+  with idle, attack, cast, hit, stunned, faint, victory and ultimate animations.
 - **Arenas:** all seven battle arenas.
 
 Rebuild them with `powershell -File art/tools/run_blender.ps1`.
@@ -147,6 +150,9 @@ Village Sauce upgrades. This is the main balance check.
   from the title: party pick, fights, upgrade picks, shop, events, game over
 - [x] Main menu: Suit Up (party and skins), Sauce Shop, Achievements, Hall of Fame
 - [x] Blender models for every hero, skin, boss, remix and minion (generated, animated)
+- [x] Detailed MakeHuman heroes, skins, forms and four bosses, with Kimodo motion capture
 - [x] Battle arenas built in Blender (all seven), with per-arena lighting and a lower Pokemon-style battle camera
-- [ ] Hand-polished models and arenas
+- [x] Original music and sound effects
+- [ ] Detailed Copilot, burger crew and minions (still chibi)
+- [ ] Hand-polished arenas and office
 - [x] Overworld office map: walk the office, pick the boss order, coworker line-of-sight fights, elevator to the burger joint

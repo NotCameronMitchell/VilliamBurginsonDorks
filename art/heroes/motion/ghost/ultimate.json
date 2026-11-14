@@ -1,0 +1,11 @@
+{
+  "hero": "ghost",
+  "anim": "ultimate",
+  "prompt": "A man spreads his arms wide and throws his head back.",
+  "seconds": 3.0,
+  "seed": 108,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

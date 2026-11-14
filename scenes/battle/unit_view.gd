@@ -424,6 +424,93 @@ func hit_flash(crit := false) -> void:
 	tw2.tween_property(self, "position", base_pos, 0.05)
 
 
+## A burst of sparks where a hit lands; crits get a bigger, brighter one.
+func impact(c: Color, big := false) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 26 if big else 14
+	p.lifetime = 0.45 if big else 0.35
+	p.direction = Vector3(0, 0.4, 0)
+	p.spread = 180.0
+	p.initial_velocity_min = 2.5 if big else 1.6
+	p.initial_velocity_max = 5.0 if big else 3.2
+	p.gravity = Vector3(0, -6.0, 0)
+	p.damping_min = 2.0
+	p.damping_max = 4.0
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.4
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 1))
+	curve.add_point(Vector2(1, 0))
+	p.scale_amount_curve = curve
+	var q := QuadMesh.new()
+	q.size = Vector2(0.09, 0.09) * (1.3 if big else 1.0)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_texture = _glow_texture()
+	m.albedo_color = c.lightened(0.25)
+	m.vertex_color_use_as_albedo = true
+	q.material = m
+	p.mesh = q
+	add_child(p)
+	p.global_position = center_pos()
+	p.emitting = true
+	get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
+
+
+## A star-shaped glint, just before an enemy strikes, so the player can read it coming.
+func glint() -> void:
+	var star := Node3D.new()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.no_depth_test = true
+	m.albedo_texture = _glow_texture()
+	m.albedo_color = Color(1.0, 0.97, 0.85)
+	for s in [Vector2(0.9, 0.12), Vector2(0.12, 0.9), Vector2(0.42, 0.42)]:  # two beams and a core
+		var mi := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = s
+		mi.mesh = q
+		mi.material_override = m
+		star.add_child(mi)
+	add_child(star)
+	star.global_position = head_pos() + Vector3(0.22, -0.12, 0.25)
+	star.scale = Vector3.ONE * 0.1
+	var tw := create_tween()
+	tw.tween_property(star, "scale", Vector3.ONE * 1.1, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(star, "rotation:z", 0.6, 0.28)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.18)
+	tw.tween_callback(star.queue_free)
+
+
+var _glow_tex: Texture2D  # per unit, so nothing outlives the battle
+
+
+## A soft round glow (made once per unit): the sprite for sparks and glints.
+func _glow_texture() -> Texture2D:
+	if _glow_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.25, Color(1, 1, 1, 0.85))
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		t.width = 64
+		t.height = 64
+		_glow_tex = t
+	return _glow_tex
+
+
 func faint() -> void:
 	alive = false
 	play("faint")

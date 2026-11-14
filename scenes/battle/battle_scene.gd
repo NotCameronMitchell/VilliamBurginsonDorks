@@ -16,6 +16,10 @@ const DMG_COLORS := {
 	"hit": Color.WHITE, "poison": Color("#7cff4f"), "bleed": Color("#ff4f6d"), "burn": Color("#ff9a1f"),
 	"reflect": Color("#ff7ae0"), "boom": Color("#ffb627"),
 }
+## How long each kind of move takes to play before the next event (at 1x).
+const ACT_WAIT := {"melee": 0.17, "ranged": 0.22, "pet": 0.22}
+## The glint before an enemy's move (seconds at 1x).
+const TELEGRAPH := 0.24
 
 var b: Battle
 var views := {} ## uid -> UnitView
@@ -33,6 +37,7 @@ var pending_action := ""
 var target_uids := []
 var info := {}
 var _shake := 0.0
+var _stop_until := 0 ## msec when the current hit-stop ends
 var _front_used := 0
 var _back_used := 0
 var _enemy_slot := 0
@@ -352,28 +357,20 @@ func _play(ev: Dictionary) -> float:
 		"act":
 			if v == null:
 				return 0.0
-			var to: UnitView = views.get(ev.get("to", -1))
-			var c := Color(ev.get("color", "")) if ev.get("color", "") != "" and not str(ev.color).begins_with("rgb") else v.color
-			match ev.style:
-				"melee":
-					Audio.sfx("swing")
-					v.lunge(to.base_pos if to else (Arena.ENEMY_CENTER if v.side == "hero" else Arena.HERO_CENTER))
-					return 0.17
-				"ranged":
-					Audio.sfx("throw")
-					_projectile(v.center_pos(), to.center_pos() if to else _side_center(v.side, true), c)
-					return 0.22
-				"pet":
-					Audio.sfx("throw")
-					var dest := to.center_pos() if to else _side_center(v.side, true)
-					_projectile(v.global_position + Vector3(0, 0.3, 0), dest, Color("#d9a066") if ev.get("pet", "") == "bruno" else Color("#555555"), 0.18)
-					return 0.22
-				_:
-					Audio.sfx("magic")
-					v.cast_pulse(c)
-					if to and to != v:
-						_projectile(v.center_pos(), to.center_pos(), c)
-					return 0.28
+			var after: float = ACT_WAIT.get(ev.style, 0.28)
+			if v.side != "hero" and ev.style != "pet":
+				# Telegraph: the enemy glints first, then strikes, so the player can read it.
+				v.glint()
+				Audio.sfx("glint", -3.0)
+				var speed: float = Game.settings.get("battle_speed", 1.0)
+				var tw := create_tween()
+				tw.tween_interval(TELEGRAPH / maxf(speed, 0.1))
+				tw.tween_callback(func():
+					if is_instance_valid(v):
+						_act(ev, v))
+				return TELEGRAPH + after
+			_act(ev, v)
+			return after
 		"dmg":
 			hp_shown[ev.uid] = ev.hp
 			Audio.sfx("crit" if ev.crit else {"poison": "poison", "burn": "burn", "boom": "boom"}.get(ev.kind, "hit"))
@@ -382,6 +379,11 @@ func _play(ev: Dictionary) -> float:
 				p.set_hp(ev.hp, ev.shield)
 			if v:
 				v.hit_flash(ev.crit)
+				if ev.kind not in StatusInfo.DOTS and ev.amount > 0:  # direct hits land with weight
+					v.impact(Color("#ffd23f") if ev.crit else Color("#fff1cf"), ev.crit)
+					_hit_stop(0.09 if ev.crit else 0.045)
+					if ev.crit:
+						_shake = maxf(_shake, 0.22)
 				var col: Color = DMG_COLORS.get(ev.kind, Color.WHITE)
 				if ev.crit:
 					col = Color("#ffd23f")
@@ -476,7 +478,7 @@ func _play(ev: Dictionary) -> float:
 			match ev.kind:
 				"truck", "subaru":
 					Audio.sfx("car")
-					_drive_by(Color("#4fc3ff") if ev.kind == "truck" else Color("#2e5cb8"))
+					_drive_by(ev.kind)
 				"wife":
 					Audio.sfx("hearts")
 					if v:
@@ -506,6 +508,44 @@ func _play(ev: Dictionary) -> float:
 			hud.message("%s appeared!" % u.name)
 			return 0.4
 	return 0.0
+
+
+## Shows a unit's move: the lunge, projectile or cast effect (see "act" in _play).
+func _act(ev: Dictionary, v: UnitView) -> void:
+	var to: UnitView = views.get(ev.get("to", -1))
+	var c := Color(ev.get("color", "")) if ev.get("color", "") != "" and not str(ev.color).begins_with("rgb") else v.color
+	match ev.style:
+		"melee":
+			Audio.sfx("swing")
+			v.lunge(to.base_pos if to else (Arena.ENEMY_CENTER if v.side == "hero" else Arena.HERO_CENTER))
+		"ranged":
+			Audio.sfx("throw")
+			_projectile(v.center_pos(), to.center_pos() if to else _side_center(v.side, true), c)
+		"pet":
+			Audio.sfx("throw")
+			var dest := to.center_pos() if to else _side_center(v.side, true)
+			_projectile(v.global_position + Vector3(0, 0.3, 0), dest, Color("#d9a066") if ev.get("pet", "") == "bruno" else Color("#555555"), 0.18)
+		_:
+			Audio.sfx("magic")
+			v.cast_pulse(c)
+			if to and to != v:
+				_projectile(v.center_pos(), to.center_pos(), c)
+
+
+## A tiny freeze when a hit lands, so it has weight (hit-stop). Hits that land close
+## together don't stack.
+func _hit_stop(dur: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now < _stop_until + 80:
+		return
+	_stop_until = now + int(dur * 1000.0)
+	Engine.time_scale = 0.05
+	await get_tree().create_timer(dur, true, false, true).timeout
+	Engine.time_scale = 1.0
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0  # never leave the game slowed if the scene changes mid-freeze
 
 
 func _auto_popup() -> void:
@@ -565,6 +605,10 @@ func _float(v: UnitView, text: String, color: Color, size := 1.0) -> void:
 	var side := -1.0 if v.float_stack % 2 == 0 else 1.0
 	l.global_position = v.head_pos() + Vector3(side * 0.25 * mini(v.float_stack, 1), step * v.float_stack, 0)
 	v.float_stack = (v.float_stack + 1) % 4
+	l.scale = Vector3.ONE * 0.5  # pops in, then settles
+	var pop := create_tween()
+	pop.tween_property(l, "scale", Vector3.ONE * 1.3, 0.07).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(l, "scale", Vector3.ONE, 0.1)
 	var tw := create_tween().set_parallel()
 	tw.tween_property(l, "global_position:y", l.global_position.y + 0.9, 0.9).set_ease(Tween.EASE_OUT)
 	tw.tween_property(l, "modulate:a", 0.0, 0.9).set_delay(0.35)
@@ -587,7 +631,7 @@ func _bubble(v: UnitView, text: String) -> void:
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.width = 520
 	add_child(l)
-	l.global_position = v.head_pos() + Vector3(0, 0.45, 0)
+	l.global_position = v.head_pos() + Vector3(0, 1.15, 0)  # above the floating numbers
 	var tw := create_tween()
 	tw.tween_interval(1.8)
 	tw.tween_property(l, "modulate:a", 0.0, 0.3)
@@ -613,20 +657,26 @@ func _projectile(from: Vector3, to: Vector3, color: Color, radius := 0.12) -> vo
 	tw.tween_callback(m.queue_free)
 
 
-## Nissan Titan / Subaru Drive-by: a car tears across the enemy side.
-func _drive_by(color: Color) -> void:
+## Nissan Titan / Subaru Drive-by: a car tears across the enemy side. kind: "truck" (Cam's
+## pickup) or "subaru" (Sarah's); the models come from art/tools/arenas.py.
+func _drive_by(kind: String) -> void:
 	var car := Node3D.new()
-	var body := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(2.2, 0.9, 1.1)
-	body.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color * 0.4
-	body.material_override = mat
-	body.position.y = 0.6
-	car.add_child(body)
+	var path := "res://assets/models/props/%s.glb" % ("titan" if kind == "truck" else "subaru")
+	if ResourceLoader.exists(path):
+		car.add_child((load(path) as PackedScene).instantiate())  # faces +x, the way it drives
+	else:
+		var color := Color("#4fc3ff") if kind == "truck" else Color("#2e5cb8")
+		var body := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(2.2, 0.9, 1.1)
+		body.mesh = bm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.emission_enabled = true
+		mat.emission = color * 0.4
+		body.material_override = mat
+		body.position.y = 0.6
+		car.add_child(body)
 	add_child(car)
 	var z := Arena.ENEMY_CENTER.z + 0.8
 	car.global_position = Vector3(-9, 0, z)

@@ -1,0 +1,11 @@
+{
+  "hero": "sales_guy",
+  "anim": "faint",
+  "prompt": "A person loses consciousness, their knees buckle, and they collapse backward onto the floor and lie still.",
+  "seconds": 3.0,
+  "seed": 14,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
+}

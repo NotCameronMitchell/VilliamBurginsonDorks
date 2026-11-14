@@ -1,0 +1,11 @@
+{
+  "hero": "trucker",
+  "anim": "victory",
+  "prompt": "A man pumps his fist in the air, then crosses his arms with a satisfied nod.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 120,
+  "joints": 77,
+  "fps": 30
+}

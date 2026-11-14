@@ -441,6 +441,48 @@ def drape(bd, used, pts, fill):
     return out
 
 
+def bust_drape(bd, P):
+    """Fabric over a bust spans straight across between the two fullest points and hangs
+    down from them, tucking in a little toward the waist. Without this a top hugs each
+    breast separately and looks shrink-wrapped. Points only ever move forward."""
+    k = bd.height / 1.8
+    sp, s2, nk = bd.j("Spine"), bd.j("Spine2"), bd.j("Neck")
+    front = P[:, 1] < s2[1]  # characters face -Y
+    band = front & (P[:, 2] > sp[2]) & (P[:, 2] < nk[2] - 0.05 * k)
+    apex = {}
+    for sg in (1, -1):
+        m = band & (sg * P[:, 0] > 0.03 * k) & (sg * P[:, 0] < 0.13 * k)
+        if m.sum() < 10:
+            return P
+        idx = np.where(m)[0]
+        apex[sg] = P[idx[np.argmin(P[idx, 1])]]
+    ya = max(apex[1][1], apex[-1][1])
+    za = (apex[1][2] + apex[-1][2]) / 2
+    xa = (abs(apex[1][0]) + abs(apex[-1][0])) / 2
+    sternum = band & (np.abs(P[:, 0]) < 0.015 * k) & (np.abs(P[:, 2] - za) < 0.03 * k)
+    if not sternum.any() or P[sternum, 1].min() - ya < 0.01 * k:
+        return P  # a flat chest: nothing to bridge
+    x, z = np.abs(P[:, 0]), P[:, 2]
+    # The front line through both fullest points: almost straight between them, curving back
+    # beyond them toward the sides.
+    line = ya + 0.006 * k * (1 - np.clip(x / xa, 0, 1) ** 2)
+    line = line + 0.02 * k * (np.maximum(x - xa, 0) / (0.05 * k)) ** 2
+    # Below it the fabric hangs nearly straight down, tucking in more toward the waist; above
+    # it the fabric goes back to following the body within a few centimeters.
+    drop = np.maximum(za - z, 0)
+    hang = line + np.tan(np.radians(10)) * drop + 0.03 * k * (drop / (0.25 * k)) ** 2
+    target = np.where(z >= za, line, hang)
+    # Round each fullest point into a dome, so the fabric doesn't tent to a point there.
+    for sg in (1, -1):
+        r2 = (P[:, 0] - apex[sg][0]) ** 2 + (P[:, 2] - apex[sg][2]) ** 2
+        target = np.minimum(target, ya + r2 / (2 * 0.09 * k))
+    w = np.where(z >= za, sstep(0.07 * k, 0.02 * k, z - za), 1.0)
+    w = w * sstep(xa + 0.08 * k, xa + 0.02 * k, x) * front
+    out = P.copy()
+    out[:, 1] = P[:, 1] + (np.minimum(P[:, 1], target) - P[:, 1]) * w
+    return out
+
+
 def smooth_loops(bm, iterations=10):
     """Straightens open edges that weren't cut (the body mesh's zigzag)."""
     bverts = [v for v in bm.verts if v.is_boundary]
@@ -506,17 +548,19 @@ def edge_loops(bm, obj):
 
 
 def garment(bd, mask, name, offset, mat, rig, smooth=4, thickness=0.0035, loose=None, fill=0.0,
-            cuts=(), edge_smooth=0, snug=None):
+            cuts=(), edge_smooth=0, snug=None, bust=False):
     """Copies the masked body faces into a garment mesh, pushed `offset` meters outward,
     then cuts its edges. snug = (weight(points) -> 0..1, offset): where the weight is 1 the
-    fabric hugs the body at that offset instead (a neckline against the neck).
-    Returns (object, edge loops)."""
+    fabric hugs the body at that offset instead (a neckline against the neck). bust: drape
+    the fabric over the chest (bust_drape). Returns (object, edge loops)."""
     mask = tidy(bd, mask)
     faces = [i for i, f in enumerate(bd.faces) if all(mask[v] for v in f)]
     used = sorted({v for i in faces for v in bd.faces[i]})
     remap = {v: k for k, v in enumerate(used)}
     used_a = np.array(used)
     pts = drape(bd, used_a, bd.co[used_a].copy(), fill)
+    if bust:
+        pts = bust_drape(bd, pts)
     verts = []
     for k_, v in enumerate(used):
         off = offset
@@ -719,10 +763,18 @@ def paint_top(bd, look_top, model_id, S=1024):
     neck_rel = (bd.j("Neck")[2] - 0.02 * k) - chest_z  # the front of the neckline, from the chest center
     # Patterns placed by where they sit on the body (around the torso and arms).
     pat = look_top.get("pattern")
-    if pat in ("stripes", "holiday", "sash", "reflective"):
+    if pat in ("stripes", "holiday", "sash", "reflective", "plaid"):
         X, Z, ok = body_maps(bd, S)
         zr = Z - chest_z
-        if pat == "stripes":  # bands around the chest and arms
+        if pat == "plaid":  # flannel: dark bands crossing both ways, with thin light lines
+            pc = hexc(look_top.get("pattern_color", "#000000"))
+            u, v = X / 0.09, zr / 0.09
+            dark = ((u % 1) < 0.35).astype(float) + ((v % 1) < 0.35).astype(float)
+            mix = (np.where(ok, dark * 0.4, 0.0))[..., None]
+            cv.a = cv.a * (1 - mix) + pc * mix
+            thin = ((((u + 0.6) % 1) < 0.05) | (((v + 0.6) % 1) < 0.05)) & ok
+            cv.a[thin] = cv.a[thin] * 0.55 + 0.45 * np.array([0.92, 0.88, 0.8])
+        elif pat == "stripes":  # bands around the chest and arms
             for i, c in enumerate(look_top.get("stripes", ["#ffffff"])):
                 band = (np.abs(zr - (-0.02 - i * 0.05)) < 0.016) & ok
                 cv.a[band] = hexc(c)
@@ -1177,6 +1229,7 @@ def dress(rig, basemesh, model_id, look=None):
         bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
     bpy.context.view_layer.update()
     bd = Body(rig, basemesh)
+    bd.female = look.get("sex") == "f"  # tops drape over the bust (bust_drape)
     Hm = bd.height
     k = Hm / 1.8
     skin_texture(bd, look, model_id)
@@ -1374,7 +1427,8 @@ def build_top(bd, rig, top, name, hem_z, waist_z, under=False, over=False):
     tmat = material("%s_top" % name, image=timg, rough=0.38 if gold else 0.85, metal=GOLD_METAL if gold else 0.0)
     off = st[2] * k * (0.6 if under else 1.0) + (0.006 * k if over else 0.0)
     tobj, tedges = garment(bd, tmask, "%s.%s" % (name, tt), off, tmat, rig, fill=st[3], smooth=5, cuts=cuts,
-                           snug=(neck_snug, (0.003 if under else 0.004 + (0.004 if over else 0.0)) * k))
+                           snug=(neck_snug, (0.003 if under else 0.004 + (0.004 if over else 0.0)) * k),
+                           bust=getattr(bd, "female", False))
     keep = np.ones(len(bd.co), bool)
     for c in cuts:
         keep &= cut_keep(bd, c)
@@ -1469,7 +1523,12 @@ def ghostify(rig):
                 bsdf.inputs["Emission Strength"].default_value = 0.8
             if not bsdf.inputs["Alpha"].links:
                 bsdf.inputs["Alpha"].default_value = 0.6
-            for attr, val in (("blend_method", "BLEND"), ("surface_render_method", "BLENDED")):
+            # Front faces only: a see-through, double-sided surface shows its own back through
+            # the front and looks inside out (the glTF export makes it single-sided too).
+            # Hair, brows and lashes are thin cards, so they keep both sides.
+            cards = any(s in m.name.lower() for s in ("hair", "brow", "lash"))
+            for attr, val in (("blend_method", "BLEND"), ("surface_render_method", "BLENDED"),
+                              ("use_backface_culling", not cards)):
                 try:
                     setattr(m, attr, val)
                 except Exception:

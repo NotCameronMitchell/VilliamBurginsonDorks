@@ -10,8 +10,9 @@ Options (after --):
     --no-export         don't write .glb files
     --no-blend          don't save the .blend lineups
     --render DIR        render preview PNGs of each character's poses into DIR
-    --chibi-heroes      also export the 6 base heroes and 2 forms as chibis (normally
-                        skipped: their game models come from hero_assemble.py now)
+    --chibi-heroes      also export the detailed characters as chibis: the 6 base heroes,
+                        2 forms and the detailed bosses and remixes (normally skipped:
+                        their game models come from hero_assemble.py now)
     --log FILE          write progress here (Blender's console isn't always visible)
 
 Writes:
@@ -165,13 +166,14 @@ def build_arenas(only, do_export):
     import arenas
     clear_scene()
     count = 0
-    for i, aid in enumerate(arenas.ARENA_IDS):
+    for i, aid in enumerate(list(arenas.ARENA_IDS) + list(arenas.EXTRA_IDS)):  # + the overworld and props
         if only and aid not in only:
             continue
         try:
             obj = arenas.build(aid)
             if do_export:
-                export_static(obj, os.path.join(ROOT, "assets", "models", "arenas", aid + ".glb"))
+                folder = arenas.EXTRA_IDS.get(aid, "arenas")
+                export_static(obj, os.path.join(ROOT, "assets", "models", folder, aid + ".glb"))
             count += 1
             log("built arenas/%s" % aid)
             if only:
@@ -188,12 +190,14 @@ def build_arenas(only, do_export):
 
 
 def detailed_ids():
-    """Heroes and forms that now come from the detailed pipeline (hero_assemble.py)."""
+    """Heroes, forms and bosses that now come from the detailed pipeline (hero_assemble.py)."""
     try:
         import hero_specs
-        return set(hero_specs.all_ids())
+        return set(hero_specs.all_ids()) | set(hero_specs.boss_ids())
     except Exception:
-        return {"mason", "james", "cole", "cam", "sam", "sarah", "cole_uw", "james_buff"}
+        bosses = ["trucker", "sales_guy", "guardian", "ghost"]
+        return {"mason", "james", "cole", "cam", "sam", "sarah", "cole_uw", "james_buff"} | \
+            set(bosses) | {b + "_remix" for b in bosses}
 
 
 def build_characters(only, render_dir, do_export):
@@ -205,7 +209,7 @@ def build_characters(only, render_dir, do_export):
     for folder, mid, spec, in_lineup in characters.all_models():
         if only and mid not in only:
             continue
-        # Don't overwrite a detailed hero with its chibi stand-in (unless asked by name with
+        # Don't overwrite a detailed hero or boss with its chibi stand-in (unless asked with
         # --chibi-heroes); the chibi still goes in the lineup .blend.
         overwrite = mid not in detailed or bool(arg("--chibi-heroes"))
         try:

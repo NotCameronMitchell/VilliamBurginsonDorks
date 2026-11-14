@@ -1,8 +1,9 @@
 class_name OfficeMap
 extends Node3D
 ## The office floor for the overworld: rooms, cubicle-height walls (so the camera
-## always sees over them), doors with signs, props, and the lobby elevator. Built
-## from primitives until a Blender version exists.
+## always sees over them), doors with signs, props, and the lobby elevator. The floors,
+## walls and furniture you see are a Blender model (art/tools/arenas.py, "overworld");
+## the same layout is built here from boxes for collision (and as a fallback look).
 ##
 ##   z=-26 +-----------+-----------+-----------+
 ##         | Desk Pods | Middle of | Meeting   |
@@ -42,16 +43,24 @@ const ELEVATOR_FRONT := Vector3(-7.2, 0, 10.0)
 const RECEPTIONIST := Vector3(4.0, 0, 6.7)
 const RECEPTION_FRONT := Vector3(4.0, 0, 4.1)
 
+const MODEL := "res://assets/models/arenas/overworld.glb"
+
 var _signs := {} ## area -> Label3D
 var _elevator_light: StandardMaterial3D
 var _elevator_sign: Label3D
+var _visual := true ## false while building collision only (the model shows the furniture)
 
 
 func build() -> void:
 	_environment()
-	_floors()
+	if ResourceLoader.exists(MODEL):
+		add_child((load(MODEL) as PackedScene).instantiate())
+		_visual = false
+	else:
+		_floors()
 	_walls()
 	_props()
+	_visual = true
 	_elevator()
 	for id in ROOMS:
 		if ROOMS[id].has("door") and id != "lobby":
@@ -155,19 +164,41 @@ func set_elevator(active: bool, text: String) -> void:
 func _environment() -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color("#a9d8ff")
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_horizon_color = Color("#cfe8ff")
+	sky_mat.sky_top_color = Color("#5d93d6")
+	sky_mat.ground_horizon_color = Color("#cfe8ff")
+	sky_mat.ground_bottom_color = Color("#6f8f5a")
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color.WHITE
-	e.ambient_light_energy = 0.45
+	e.ambient_light_color = Color("#f2f4ff")
+	e.ambient_light_energy = 0.42
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.glow_enabled = true  # screens and lamps glow a little
+	e.glow_intensity = 0.5
+	e.glow_hdr_threshold = 1.0
+	e.adjustment_enabled = true  # the same light grade as the battle arenas (docs/STYLE.md)
+	e.adjustment_contrast = 1.06
+	e.adjustment_saturation = 1.1
 	env.environment = e
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58, -30, 0)
-	sun.light_energy = 0.9
+	sun.light_color = Color("#fff4e6")
+	sun.light_energy = 0.95
 	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 45.0
 	add_child(sun)
+	var rim := DirectionalLight3D.new()  # a cool back light, so the party stands out
+	rim.rotation_degrees = Vector3(-25, 150, 0)
+	rim.light_color = Color("#d6e4ff")
+	rim.light_energy = 0.4
+	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	add_child(rim)
 	var grass := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(140, 140)
@@ -266,16 +297,20 @@ func _mat(c: Color, emit := 0.0) -> StandardMaterial3D:
 	return m
 
 
-## A box standing on the floor at pos (bottom center). collide: blocks walking.
+## A box standing on the floor at pos (bottom center). collide: blocks walking. While
+## building collision only (_visual off), it adds no mesh and returns null.
 func _box(size: Vector3, pos: Vector3, c: Color, collide := true, emit := 0.0, rot_y := 0.0) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = size
-	mi.mesh = b
-	mi.material_override = _mat(c, emit)
-	mi.position = pos + Vector3(0, size.y / 2.0, 0)
-	mi.rotation_degrees.y = rot_y
-	add_child(mi)
+	var center := pos + Vector3(0, size.y / 2.0, 0)
+	var mi: MeshInstance3D = null
+	if _visual:
+		mi = MeshInstance3D.new()
+		var b := BoxMesh.new()
+		b.size = size
+		mi.mesh = b
+		mi.material_override = _mat(c, emit)
+		mi.position = center
+		mi.rotation_degrees.y = rot_y
+		add_child(mi)
 	if collide:
 		var body := StaticBody3D.new()
 		var shape := CollisionShape3D.new()
@@ -283,22 +318,24 @@ func _box(size: Vector3, pos: Vector3, c: Color, collide := true, emit := 0.0, r
 		bs.size = size
 		shape.shape = bs
 		body.add_child(shape)
-		body.position = mi.position
+		body.position = center
 		body.rotation_degrees.y = rot_y
 		add_child(body)
 	return mi
 
 
 func _cyl(r: float, h: float, pos: Vector3, c: Color, collide := true, emit := 0.0) -> void:
-	var mi := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = r
-	cm.bottom_radius = r
-	cm.height = h
-	mi.mesh = cm
-	mi.material_override = _mat(c, emit)
-	mi.position = pos + Vector3(0, h / 2.0, 0)
-	add_child(mi)
+	var center := pos + Vector3(0, h / 2.0, 0)
+	if _visual:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = r
+		cm.bottom_radius = r
+		cm.height = h
+		mi.mesh = cm
+		mi.material_override = _mat(c, emit)
+		mi.position = center
+		add_child(mi)
 	if collide:
 		var body := StaticBody3D.new()
 		var shape := CollisionShape3D.new()
@@ -307,12 +344,14 @@ func _cyl(r: float, h: float, pos: Vector3, c: Color, collide := true, emit := 0
 		cs.height = h
 		shape.shape = cs
 		body.add_child(shape)
-		body.position = mi.position
+		body.position = center
 		add_child(body)
 
 
 func _plant(x: float, z: float) -> void:
 	_cyl(0.3, 0.45, Vector3(x, 0, z), Color("#a0522d"))
+	if not _visual:
+		return
 	var leaves := MeshInstance3D.new()
 	var s := SphereMesh.new()
 	s.radius = 0.5
