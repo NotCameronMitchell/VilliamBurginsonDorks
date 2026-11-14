@@ -28,6 +28,30 @@ scenes/        Godot scenes (title, overworld, battle, ui)
 scripts/       shared game code (combat engine, data, saves)
 ```
 
+## Playing
+
+Press **F5** in Godot (or run the project). On the title screen, pick 4 of the 6
+heroes and press Start. In battle:
+
+- **Tap a move** to use it. Moves that hit one enemy then ask you to tap a target
+  (on the stage or on its name plate).
+- **Hover over a move** (PC) or **long-press it** (phone) to read what it does.
+- **Hero tabs** let you act in any order. **Wait** skips a hero.
+- **Auto** lets the AI play, **1x/2x** speeds up the animations, and **Settings**
+  has the Copilot pop-up timer (Normal / Long / Off) and text speed.
+
+Characters are placeholder shapes until their Blender models exist. Drop a `.glb` in
+`assets/models/heroes|bosses|minions/` named after the hero or enemy id (for example
+`cole.glb`, `trucker.glb`) and the battle loads it and plays its animations by name.
+
+**Test flags** (after `--`): `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`,
+`--remix`, `--auto`, `--skip-story`, `--speed=3`, `--save-dir=user://test/`, and
+`--shots=<dir>` to save screenshots. For example:
+
+```
+godot --path . -- --fight=copilot --party=sam,sarah,cole,cam
+```
+
 ## Tests and balance
 
 ```
@@ -51,6 +75,11 @@ Village Sauce upgrades. This is the main balance check.
 - `scripts/game/run.gd`: the run loop: stages, enemy scaling, rewards, drafts and the shop
 - `scripts/game/save_game.gd`: saves (meta progress, run in progress, Hall of Fame)
 - `scripts/data/`: also `run_events.gd`, `achievements.gd`, `outfits.gd`, `meta_upgrades.gd`
+- `scripts/game/game_state.gd`: the `Game` autoload (saves, settings, scene changes, test flags)
+- `scenes/battle/`: the battle screen: `battle_scene.gd` replays the engine's events;
+  `battle_hud.gd` and `unit_plate.gd` are the UI; `unit_view.gd` and `arena.gd` the 3D stage
+- `scenes/run/run_overlay.gd`: loot, upgrade cards, shop and event panels
+- `scripts/ui/ui_theme.gd`: colors, fonts and the panel/button style
 
 ## Status
 
@@ -60,6 +89,8 @@ Village Sauce upgrades. This is the main balance check.
 - [x] Sam and Sarah, tuned with the simulator
 - [x] The six new bosses and their remixes, with intro and defeat lines
 - [x] Run loop: stages, scaling, drafts, shop, events, achievements, skins, saves
-- [ ] Battle scene and Pokemon-style HUD
+- [x] Battle scene and Pokemon-style HUD (placeholder models), with the run loop playable
+  from the title: party pick, fights, upgrade picks, shop, events, game over
+- [ ] Suit Up screen (skins), Sauce Shop (meta upgrades), achievements list
 - [ ] First Blender models (heroes)
 - [ ] Overworld office map

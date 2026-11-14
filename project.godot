@@ -10,6 +10,10 @@ config/description="The 3D sequel to The Quest for Villiam Burginson."
 run/main_scene="res://scenes/title/title.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
+[autoload]
+
+Game="*res://scripts/game/game_state.gd"
+
 [display]
 
 window/size/viewport_width=1280
