@@ -39,7 +39,7 @@ Coworkers stand at their desks; walk into their line of sight and you get a **"!
 and a minion fight. Each boss stands at the end of their area, and you have to talk
 to them to start the fight.
 
-**Route (one cycle):** like the original, a cycle is minion → boss three times, then
+**Route (one cycle):** like the original, a cycle is minion â†’ boss three times, then
 the burger joint. Each cycle, **3 of the 5 office bosses are drawn at random**. Their
 areas open on the office map, and the other two areas have an "Out of Office" sign on
 the door. The bosses' areas are the Parking Lot, Desk Pods, Meeting Room, Middle of
@@ -57,11 +57,11 @@ the camera punches in on crits, and ultimates get a full-screen cut-in banner
 (TRANSFER TO UW, NISSAN TITAN, ...).
 
 **Battle HUD:**
-- A name plate for each unit with an HP bar that drains smoothly (green → yellow → red),
+- A name plate for each unit with an HP bar that drains smoothly (green â†’ yellow â†’ red),
   a level/rank pip, and status icons.
 - A text box at the bottom: *"The Angry Trucker used SEND MY MONEY NOW!"*, typed out
   one letter at a time and skipped with a click or tap.
-- A 2×2 move menu (the hero's four abilities) plus Attack, Ultimate and Bag (items).
+- A 2Ã—2 move menu (the hero's four abilities) plus Attack, Ultimate and Bag (items).
   Each move shows its cooldown and a color-coded type tag (Damage / Buff / Debuff / Heal).
 - Hold or right-click a move for its full tooltip.
 
@@ -92,9 +92,9 @@ bar under their HP: blue for Sam's MP, yellow for Sarah's Energy. In the tables 
 
 | HP | ATK | DEF | Crit | Dodge |
 |---|---|---|---|---|
-| 75 | 14 | 0% | 8% | 5% |
+| 75 | 13 | 0% | 8% | 5% |
 
-She's the glass cannon: the lowest HP and the highest ATK in the game.
+She's the glass cannon: the lowest HP in the game, tied with Sarah and Cole for the most damage.
 
 **Mana instead of cooldowns.** Sam has 100 max MP. She starts each fight with 40 and
 regenerates MP every turn (how much depends on her weapon). Her abilities have **no
@@ -103,12 +103,12 @@ Ranking an ability up raises its power and lowers its cost by 2 per rank.
 
 | Ability | MP | Effect |
 |---|---|---|
-| **Ignore Emails** | 35 | A shield worth 25% of her max HP, and she reflects 20% of the damage aimed at her, for 2 turns. *+5% shield and +5% reflect per rank.* |
+| **Ignore Emails** | 35 | A shield worth 25% of her max HP (it lasts until it breaks), and she reflects 20% of the damage aimed at her for 2 turns. *+5% shield and +5% reflect per rank.* |
 | **Rage Bait** | 30 | A fireball at one enemy: 220% ATK, and the target is Weakened 20% for a turn. **If Mason is in the party: +25% crit chance**, and sometimes she says "I hate Mason." *+15% damage per rank.* |
-| **Energy Drinks Are Bad For You** | 25 | Scolds every enemy: 60% ATK to all, and they're **Exposed** (can't dodge) for 2 turns. Deals double damage to Energy Drink and Tallboy minions. *+10% damage per rank. At r3+, Exposed enemies also take 10% more damage.* |
-| **Refrigerated Burger Bomb** | 40 | Takes a bite of a cold burger (poisons herself for 4% max HP a turn, 2 turns), then throws it: 100% ATK to all enemies, plus Poison at 40% ATK a turn for 3 turns. *+15% damage per rank. At r5 the burger's fine, so no self-poison.* |
+| **Energy Drinks Are Bad For You** | 25 | Scolds every enemy: 45% ATK to all, and they're **Exposed** (can't dodge) for 2 turns. Deals +50% damage to Energy Drink and Tallboy minions. *+10% damage per rank. At r3+, Exposed enemies also take 10% more damage.* |
+| **Refrigerated Burger Bomb** | 45 | Takes a bite of a cold burger (poisons herself for 4% max HP a turn, 2 turns), then throws it: 80% ATK to all enemies, plus Poison at 30% ATK a turn for 3 turns. *+15% damage per rank. At r5 the burger's fine, so no self-poison.* |
 | **Passive, Desk Treadmill** | - | Heals 5% max HP every turn. Healing past full HP turns into a shield, up to 10% max HP. *+1% healing per rank.* |
-| **Ultimate, Unexpected Out of Pocket Message** | - | Says something so heinous it deals 280% ATK to every enemy and stuns them for 2 turns. Uses the normal ultimate timer (ready on turn 4, then every 5). *+20% damage per rank.* Boss stun diminishing returns still apply. |
+| **Ultimate, Unexpected Out of Pocket Message** | - | Says something so heinous it deals 240% ATK to every enemy and stuns them for 2 turns. Uses the normal ultimate timer (ready on turn 4, then every 5). *+20% damage per rank.* Boss stun diminishing returns still apply. |
 
 **Weapons:**
 
@@ -121,7 +121,13 @@ Ranking an ability up raises its power and lowers its cost by 2 per rank.
 **Why it balances:**
 - About 15 MP a turn means a big spell roughly every other turn. Basic attacks with
   the Booster Seat fill the gaps.
-- Spamming Rage Bait (about 31 damage) is strong but drains her MP in 2-3 turns.
+- Spamming Rage Bait (about 29 damage) is strong but drains her MP in 2-3 turns.
+
+**Simulator check (all 15 possible parties, 60 fights each):** in late minion fights Sam
+does about 30% of her party's damage and Sarah about 31%. In boss-length fights Sarah
+does about 39% (the boss killer), Cole 32%, Sam 25%. The original four stayed where
+they were. The numbers above are the tuned ones, and `tests/run_tests.gd` re-runs this
+report.
 - Her shield, the treadmill and reflect keep her alive despite 75 HP. If she's focused
   while out of MP, she goes down fast.
 
@@ -132,7 +138,7 @@ Ranking an ability up raises its power and lowers its cost by 2 per rank.
 
 | HP | ATK | DEF | Crit | Dodge |
 |---|---|---|---|---|
-| 100 | 13 | 0% | 15% | 12% |
+| 100 | 12 | 0% | 15% | 12% |
 
 Pure damage: no defense, no crowd control. She stacks Bleeds, then detonates them.
 
@@ -144,11 +150,11 @@ and removes it.
 | Ability | CD | Energy | Effect |
 |---|---|---|---|
 | **The Worm** | 2 | +8 per hit | Flops on the ground throwing 4 knives at random enemies: 30% ATK each, and each hit Bleeds (20% ATK a turn, 3 turns). *+1 knife at r3 and r5.* |
-| **Scuba** | 2 | +10 per hit | Slashes one enemy 3 times for 40% ATK each. Every hit adds a Bleed stack (25% ATK a turn). *+1 slash at r3 and r5.* |
-| **Dab** | - | costs 50 | Hits a mean dab: **detonates every Bleed on every enemy** at 150%. *+25% per rank. At r4 it costs 40.* |
-| **Catching the Fish** | 3 | +20 | Reels in the **highest-HP enemy** automatically, then stabs it: 150% ATK and Bleed (40% ATK a turn). *+15% damage per rank.* |
-| **Passive, Dance Rehearsal** | - | - | Rehearses during enemy turns: +4% damage every round, up to +40%. *+1% per round per rank.* |
-| **Ultimate, Subaru Drive-by** | - | spends all | Drives by every enemy: 120% ATK and a Bleed, then detonates every Bleed at 100% **+1% for each point of Energy spent** (so at 100 Energy, 200%). *+20% detonate per rank.* |
+| **Scuba** | 2 | +10 per hit | Slashes one enemy 3 times for 40% ATK each. Every hit adds a Bleed stack (15% ATK a turn). *+1 slash at r3 and r5.* |
+| **Dab** | - | costs 50 | Hits a mean dab: **detonates every Bleed on every enemy** at 125%. *+25% per rank. At r4 it costs 40.* |
+| **Catching the Fish** | 3 | +20 | Reels in the **highest-HP enemy** automatically, then stabs it: 150% ATK and Bleed (30% ATK a turn). *+15% damage per rank.* |
+| **Passive, Dance Rehearsal** | - | - | Rehearses during enemy turns: +3% damage every round, up to +30%. *+1% per round per rank.* |
+| **Ultimate, Subaru Drive-by** | - | spends all | Drives by every enemy: 100% ATK and a Bleed, then detonates every Bleed at 50% **+0.5% for each point of Energy spent** (so at 100 Energy, 100%). *+20% detonate per rank.* |
 
 **Weapons:**
 
@@ -161,8 +167,8 @@ and removes it.
 **Why it balances:**
 - She does nothing but damage, so she's the best boss killer, but she has no way to
   protect herself. She needs James's taunts or Cam's stuns to stay alive.
-- Her damage builds up: weak on turns 1-2, a monster by turn 6 (Rehearsal + a full
-  Energy Subaru). Short minion fights favor the other heroes, and long boss fights
+- Her damage builds up: weak on turns 1-2, a monster by turn 6 (Rehearsal + Dab +
+  a full-Energy Subaru). Short minion fights favor the other heroes, and long boss fights
   favor her.
 - To keep Dab from one-shotting a boss, detonation damage is capped at 35% of a boss's
   max HP per detonation.
@@ -196,7 +202,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *A semi idling across four parking spaces. He's here about an invoice.*
 
-- **HP** 280 · **ATK** 13 · **DEF** 10%
+- **HP** 280 Â· **ATK** 13 Â· **DEF** 10%
 - **Grudge (passive):** he has it out for Cole. Half of his single-target attacks go
   at Cole, and each hit on Cole has a 35% chance to stun him for a turn.
 - **SEND MY MONEY NOW (ultimate, every 5 turns):** honks the air horn at Cole:
@@ -217,7 +223,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *Nobody knows his name, what he sells, or why there's a coffee stirrer over his ear.*
 
-- **HP** 260 · **ATK** 12 · **Dodge** 20%
+- **HP** 260 Â· **ATK** 12 Â· **Dodge** 20%
 - **Aura (passive):** he gains 1 Aura stack every turn (max 5). Each stack gives the
   whole party *Mogged*: -6% damage per stack. He never speaks: every speech bubble is
   just "*aura*" with a sparkle.
@@ -237,7 +243,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *A hooded figure with a glowing laptop and a scythe. He just wants to save you some time.*
 
-- **HP** 270 · **ATK** 12
+- **HP** 270 Â· **ATK** 12
 - **Cowork Skills Pop-Up (gimmick, every 3 turns):** the game stops and a pop-up
   appears: *"Have you downloaded my Cowork skills yet?"* with a countdown bar
   (2.5 seconds at first, shrinking to 1.5 seconds) and two buttons:
@@ -261,7 +267,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *She controls the office speaker. She has one playlist. It is on repeat.*
 
-- **HP** 290 · **ATK** 12
+- **HP** 290 Â· **ATK** 12
 - **On Repeat (passive):** every turn she plays a song, and the party gets 1
   *Earworm* stack: -8% damage reduction per stack (so they take more damage), max 5.
 - **The Boombox:** a separate enemy on her platform (60 HP). Breaking it stops the
@@ -280,7 +286,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 *James left for a new job, but his old desk was never cleaned out. The James who
 used to work here is still logged in.*
 
-- **HP** 230 · **ATK** 12
+- **HP** 230 Â· **ATK** 12
 - **Lore:** this is party James's own old-job self, wearing the brown matching set and
   the mustache in see-through ghost blue. The intro plays it straight:
   - **Ghost:** "Back from emails going through lunch."
@@ -352,8 +358,8 @@ The simulator says:
 |---|---|---|
 | 1 | Boss HP -15%, or hero damage +10% in cycle 1. Target about 9 rounds per boss. | Boss fights are too long. |
 | 2 | Smooth `scaling()` so the third boss isn't a spike. | The 6B death clusters. |
-| 3 | **Transfer to UW:** triple damage becomes double, and the full max HP shield becomes 50%. Still heals to full. | Heal + 100% shield + 3× damage is the strongest button in the game. |
-| 4 | **Daily Dollar:** scales off ATK instead of James's max HP, and goes to cooldown 3. | 20% of 150 HP is about 2.5× his ATK as unavoidable flat damage on a 2-turn cooldown. |
+| 3 | **Transfer to UW:** triple damage becomes double, and the full max HP shield becomes 50%. Still heals to full. | Heal + 100% shield + 3Ã— damage is the strongest button in the game. |
+| 4 | **Daily Dollar:** scales off ATK instead of James's max HP, and goes to cooldown 3. | 20% of 150 HP is about 2.5Ã— his ATK as unavoidable flat damage on a 2-turn cooldown. |
 | 5 | **Stuns on bosses:** each stun after the first in a fight lasts 1 turn less (minimum 1), and Resolve lasts 2 turns. | Iceland Story + Nissan Titan + Mind Goblin can stun-lock a boss. |
 | 6 | **We Go Next:** trigger threshold rises from 15% to 25% HP. | It almost never fires, so Mason's passive does nothing. |
 | 7 | **Secret Sauce / Seasoned Veterans:** +5%/+6% per level becomes +3%/+4%, max level stays 10. | Max meta trivializes the game. |

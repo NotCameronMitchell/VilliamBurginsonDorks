@@ -28,11 +28,29 @@ scenes/        Godot scenes (title, overworld, battle, ui)
 scripts/       shared game code (combat engine, data, saves)
 ```
 
+## Tests and balance
+
+```
+godot --headless --path . --script res://tests/run_tests.gd
+```
+
+Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. Add
+`BALANCE_DETAIL=<hero id>` to see where that hero's damage comes from.
+
+## Code
+
+- `scripts/core/battle.gd`: the deterministic turn-based combat engine. It records
+  events that the battle scene plays back.
+- `scripts/data/hero_data.gd`: the six heroes, their abilities and weapons
+- `scripts/data/enemy_data.gd`: minions (the new bosses go here next)
+- `scripts/game/battle_ai.gd`: the AI used by tests and the Auto button
+
 ## Status
 
 - [x] Design doc and boss designs
 - [x] Project skeleton with a title screen and placeholder heroes
-- [ ] Port the combat engine and hero data from the original
+- [x] Combat engine and the 4 original heroes, ported from the original (with the balance changes)
+- [x] Sam and Sarah, tuned with the simulator
 - [ ] Battle scene and Pokemon-style HUD
 - [ ] First Blender models (heroes)
 - [ ] Overworld office map
