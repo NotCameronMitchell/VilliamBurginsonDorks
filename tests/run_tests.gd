@@ -32,6 +32,8 @@ func _init() -> void:
 	test_achievements_and_outfits()
 	test_saves()
 	test_models()
+	test_overworld_logic()
+	test_office_map()
 	if OS.get_environment("FULL_RUN") == "1":
 		full_run_report()
 	if OS.get_environment("BALANCE") == "1":
@@ -696,6 +698,78 @@ func test_saves() -> void:
 	check(SaveGame.load_run(dir).is_empty(), "save: clearing the run works")
 	for f in [SaveGame.META, SaveGame.BOARD]:
 		DirAccess.remove_absolute(dir + f)
+
+
+## The overworld lets the player pick which open area (boss) to take on next.
+func test_overworld_logic() -> void:
+	var meta := SaveGame.fresh_meta()
+	var run := Run.new_run(meta, 4242, ["cole", "cam", "sam", "sarah"])
+	var drawn := Run.cycle_bosses(run.seed, 0)
+	for b in EnemyData.BOSS_POOL:
+		var s := Run.area_status(run, b)
+		check(s == ("open" if drawn.has(b) else "closed"), "overworld: %s starts %s (got %s)" % [b, "open" if drawn.has(b) else "closed", s])
+	# Pick the last boss of the seeded draw first.
+	var pick: String = drawn[2]
+	check(Run.lock_area(run, pick), "overworld: picking an open area works")
+	check(Run.locked_areas(run) == [pick], "overworld: the pick is remembered")
+	check(Run.current_stage(run).boss == pick, "overworld: the coworker fight belongs to the picked area")
+	check(Run.area_status(run, pick) == "in_progress", "overworld: picked area is in progress")
+	check(Run.area_status(run, drawn[0]) == "waiting", "overworld: other areas wait")
+	check(not Run.lock_area(run, drawn[0]), "overworld: can't pick a second area mid-way")
+	check(Run.lock_area(run, pick), "overworld: re-picking the same area is fine")
+	var b0 := Run.build_battle(run, meta)
+	check(b0.enemies().all(func(e): return not e.boss), "overworld: the coworker fight is minions")
+	run.stage = 1
+	check(Run.current_stage(run).kind == "boss" and Run.current_stage(run).boss == pick, "overworld: then the picked area's boss")
+	check(Run.area_status(run, pick) == "boss", "overworld: boss is waiting to be talked to")
+	check(Run.build_battle(run, meta).enemies()[0].key == pick, "overworld: the boss fight is the picked boss")
+	run.stage = 2
+	check(Run.area_status(run, pick) == "cleared", "overworld: beaten area is cleared")
+	check(Run.area_status(run, drawn[0]) == "open" and Run.area_status(run, drawn[1]) == "open", "overworld: the rest are open again")
+	check(Run.lock_area(run, drawn[0]), "overworld: pick the next area")
+	check(Run.locked_areas(run) == [pick, drawn[0]], "overworld: picks stack up in order")
+	run.stage = 3
+	check(Run.build_battle(run, meta).enemies()[0].key == drawn[0], "overworld: second boss is the second pick")
+	run.stage = 5
+	check(Run.current_stage(run).boss == drawn[1], "overworld: the last area is whatever's left")
+	run.stage = 6
+	check(Run.current_stage(run).kind == "bonus" and drawn.all(func(b): return Run.area_status(run, b) == "cleared"), "overworld: all cleared before the burger joint")
+	# Next cycle: fresh picks; saved picks survive JSON.
+	run.stage = 7
+	var drawn1 := Run.cycle_bosses(run.seed, 1)
+	check(Run.locked_areas(run).is_empty() and drawn1.all(func(b): return Run.area_status(run, b) == "open"), "overworld: a new cycle starts with every drawn area open")
+	run.stage = 2
+	var dir := "user://test_saves/"
+	DirAccess.make_dir_recursive_absolute(dir)
+	SaveGame.save_run(run, dir)
+	var loaded := SaveGame.load_run(dir)
+	check(Run.locked_areas(loaded) == [pick, drawn[0]], "overworld: picks survive saving")
+	SaveGame.save_run({}, dir)
+	# Old saves (no picks) follow the seeded order.
+	var plain := Run.new_run(meta, 4242, ["cole", "cam", "sam", "sarah"])
+	plain.stage = 1
+	check(Run.current_stage(plain).boss == drawn[0] and Run.area_status(plain, drawn[0]) == "boss", "overworld: no picks = seeded order")
+
+
+func test_office_map() -> void:
+	check(OfficeMap.room_at(OfficeMap.SPAWN) == "lobby", "map: you start in the lobby")
+	for area in OfficeMap.AREAS:
+		check(OfficeMap.room_at(OfficeMap.guard_spot(area)) == area, "map: %s's coworker stands inside it" % area)
+		check(OfficeMap.room_at(OfficeMap.boss_spot(area)) == area, "map: %s's boss stands inside it" % area)
+		check(OfficeMap.in_vision(area, OfficeMap.vision_point(area)), "map: walking into %s's door is in sight" % area)
+		check(not OfficeMap.in_vision(area, OfficeMap.door_pos(area) + Vector3(0, 0, 0) - OfficeMap.inward(area) * 4.0), "map: the middle of the hallway isn't in %s's sight" % area)
+		var p := OfficeMap.path(OfficeMap.SPAWN, OfficeMap.boss_spot(area))
+		check(p.size() == 5 and p[-1] == OfficeMap.boss_spot(area), "map: lobby to %s goes through two doors" % area)
+	# Walking the hallway center line never trips a coworker.
+	for x in range(-25, 26):
+		for area in OfficeMap.AREAS:
+			if OfficeMap.in_vision(area, Vector3(x, 0, -4)):
+				check(false, "map: hallway center at x=%d is in %s's sight" % [x, area])
+				return
+	check(true, "map: the hallway center is safe")
+	# Every boss area exists on the map.
+	for b in EnemyData.BOSS_POOL:
+		check(OfficeMap.AREAS.has(EnemyData.ENEMIES[b].arena), "map: %s's area is on the map" % b)
 
 
 const ANIMS := ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate"]

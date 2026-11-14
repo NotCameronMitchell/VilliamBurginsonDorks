@@ -63,7 +63,7 @@ func _ready() -> void:
 		if Game.run.is_empty():
 			Game.go_title()
 			return
-		info = Run.stage_info(Game.run.stage, Game.run.seed)
+		info = Run.current_stage(Game.run)
 		arena_id = "villiam_burginson" if info.kind == "bonus" else EnemyData.ENEMIES[info.boss].get("arena", "office")
 		if not Game.run.get("pending", {}).is_empty():
 			_build_world(arena_id)
@@ -699,4 +699,4 @@ func _post_fight(res: Dictionary) -> void:
 		await overlay.notice(ev.title, lines)
 	run.pending = {}
 	Game.save()
-	Game.go_battle()
+	Game.go_overworld()

@@ -90,6 +90,34 @@ const BOSS_LINES := {
 }
 
 
+## Overworld lines. Each area has a coworker guarding the door (the minion fight) and
+## a few office regulars to talk to. "%s" gets filled in where noted.
+const OVERWORLD := {
+	"guards": {
+		"parking_lot": {"model": "loud_typer", "line": "Nobody leaves before 5. Not even to the parking lot. CLACK CLACK."},
+		"desk_pods": {"model": "reply_all", "line": "Per my last email: nobody gets past the pods. Thanks all!!"},
+		"meeting_room": {"model": "close_talker", "line": "Got a sec? The 2 o'clock is running long. Like, really long."},
+		"office_center": {"model": "fish_guy", "line": "It's just salmon! Want some? No? Then fight me."},
+		"james_desk": {"model": "reply_all", "line": "Nobody goes near James's old desk. Adding the whole team!"},
+	},
+	"guard_beaten": "Fine. Go on in. %s is waiting for you.", # boss name
+	"guard_cleared": "Nice work in there. Bring me back some sauce?",
+	"guard_waiting": "You're busy over in the %s. Finish that first.", # area name
+	"boss_not_ready": "You'll have to get past my coworker first.",
+	"boss_waiting": "Come back when you're done in the %s.", # area name
+	"out_of_office": "%s is out of office today.", # boss name
+	"receptionist_name": "Front Desk",
+	"receptionist": "Morning! Today's bosses: %s. The elevator down to Villiam Burginson's opens once all three are dealt with.", # list
+	"receptionist_done": "That's everyone! The elevator's waiting. Bring me back some sauce?",
+	"elevator_locked": "The elevator only goes down once today's three bosses are beaten. (%d of 3 so far)",
+	"elevator_go": "Going down to Villiam Burginson's...",
+	"regulars": [
+		{"model": "energy_drink", "pos": [-7.5, -6.6], "face": [0, 1], "lines": ["300mg of caffeine says hi.", "I've been awake since Tuesday."]},
+		{"model": "nic_pouch", "pos": [7.5, -1.3], "face": [0, -1], "lines": ["Don't mind me. Just tucked in here.", "Cool mint. Always cool mint."]},
+	],
+}
+
+
 ## The intro lines for a boss (the remix's own intro if it has one).
 static func boss_intro(id: String, remix := false) -> Array:
 	var l: Dictionary = BOSS_LINES.get(id, {})

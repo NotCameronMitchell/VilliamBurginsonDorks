@@ -16,9 +16,14 @@ func _ready() -> void:
 		return
 	_build_world()
 	_build_ui()
-	if Game.auto_play:
+	if OS.get_cmdline_user_args().has("--continue") and not Game.run.is_empty():
+		Game.continue_run.call_deferred()
+	elif Game.auto_play:
 		await get_tree().create_timer(1.0).timeout
-		_start_run(Game.default_party())
+		if not Game.run.is_empty():
+			Game.continue_run()
+		else:
+			_start_run(Game.default_party())
 	elif Game.open_menu != "":
 		_open(Game.open_menu)
 
@@ -126,8 +131,8 @@ func _build_buttons() -> void:
 		c.queue_free()
 	_confirm_new = false
 	if not Game.run.is_empty():
-		var info := Run.stage_info(Game.run.stage, Game.run.seed)
-		_buttons.add_child(_menu_button("Continue run", "%s, stage %d" % [info.title, Game.run.stage + 1], UITheme.SUPPORT, func(): Game.go_battle()))
+		var info := Run.current_stage(Game.run)
+		_buttons.add_child(_menu_button("Continue run", "%s, stage %d" % [info.title, Game.run.stage + 1], UITheme.SUPPORT, func(): Game.continue_run()))
 	var new_btn := _menu_button("New run" if not Game.run.is_empty() else "Start", "Pick your party and skins", UITheme.ACCENT, Callable())
 	new_btn.pressed.connect(func():
 		if not Game.run.is_empty() and not _confirm_new:
@@ -165,7 +170,7 @@ func _start_run(party: Array) -> void:
 	if party.size() != HeroData.PARTY_SIZE:
 		return
 	Game.new_run(party)
-	Game.go_battle()
+	Game.go_overworld()
 
 
 func _process(delta: float) -> void:

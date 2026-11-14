@@ -15,6 +15,7 @@ extends Node
 
 const TITLE := "res://scenes/title/title.tscn"
 const BATTLE := "res://scenes/battle/battle_scene.tscn"
+const OVERWORLD := "res://scenes/overworld/overworld.tscn"
 const DEFAULT_SETTINGS := {
 	"popup_timer": 1.0, ## Copilot pop-up countdown multiplier; 0 = no timer
 	"battle_speed": 1.0, ## 1 or 2
@@ -43,6 +44,7 @@ func _ready() -> void:
 		if a.begins_with("--save-dir="):
 			save_dir = a.trim_prefix("--save-dir=")
 			DirAccess.make_dir_recursive_absolute(save_dir)
+	_ensure_actions()
 	meta = SaveGame.load_meta(save_dir)
 	settings = DEFAULT_SETTINGS.duplicate()
 	settings.merge(meta.get("settings", {}), true)
@@ -82,6 +84,52 @@ func go_title() -> void:
 
 func go_battle() -> void:
 	get_tree().change_scene_to_file(BATTLE)
+
+
+func go_overworld() -> void:
+	get_tree().change_scene_to_file(OVERWORLD)
+
+
+## Continue the saved run: back to the office, or to the after-fight screens if the
+## app was closed in the middle of them.
+func continue_run() -> void:
+	if not run.get("pending", {}).is_empty():
+		go_battle()
+	else:
+		go_overworld()
+
+
+## Movement and interact controls: keyboard (WASD / arrows, E / Space / Enter) and
+## gamepad (left stick / d-pad, A).
+func _ensure_actions() -> void:
+	var keys := {
+		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
+		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
+		"interact": [KEY_E, KEY_SPACE, KEY_ENTER],
+	}
+	var pads := {
+		"move_left": [JOY_BUTTON_DPAD_LEFT], "move_right": [JOY_BUTTON_DPAD_RIGHT],
+		"move_up": [JOY_BUTTON_DPAD_UP], "move_down": [JOY_BUTTON_DPAD_DOWN], "interact": [JOY_BUTTON_A],
+	}
+	var axes := {"move_left": [JOY_AXIS_LEFT_X, -1.0], "move_right": [JOY_AXIS_LEFT_X, 1.0],
+		"move_up": [JOY_AXIS_LEFT_Y, -1.0], "move_down": [JOY_AXIS_LEFT_Y, 1.0]}
+	for action in keys:
+		if InputMap.has_action(action):
+			continue
+		InputMap.add_action(action, 0.25)
+		for k in keys[action]:
+			var ev := InputEventKey.new()
+			ev.physical_keycode = k
+			InputMap.action_add_event(action, ev)
+		for btn in pads.get(action, []):
+			var jb := InputEventJoypadButton.new()
+			jb.button_index = btn
+			InputMap.action_add_event(action, jb)
+		if axes.has(action):
+			var jm := InputEventJoypadMotion.new()
+			jm.axis = axes[action][0]
+			jm.axis_value = axes[action][1]
+			InputMap.action_add_event(action, jm)
 
 
 # ------------------------------------------------------------------ test options

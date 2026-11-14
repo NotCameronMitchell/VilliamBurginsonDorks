@@ -76,14 +76,86 @@ static func is_remix(seed: int, cycle: int, boss: String) -> bool:
 	return rng.chance(REMIX_CHANCE)
 
 
+## The order a cycle's bosses are fought in: the areas the player already picked on
+## the overworld (in the order they picked them), then the rest of the seeded draw.
+static func cycle_order(seed: int, cycle: int, locked: Array = []) -> Array:
+	var drawn := cycle_bosses(seed, cycle)
+	var out := []
+	for b in locked:
+		if drawn.has(b) and not out.has(b):
+			out.append(b)
+	for b in drawn:
+		if not out.has(b):
+			out.append(b)
+	return out
+
+
+## The areas the player has picked so far in a cycle (default: the current one).
+static func locked_areas(run: Dictionary, cycle := -1) -> Array:
+	if cycle < 0:
+		cycle = run.stage / STAGES_PER_CYCLE
+	return run.get("locked", {}).get(str(cycle), [])
+
+
+## stage_info for the run's current stage, following the areas the player picked.
+static func current_stage(run: Dictionary) -> Dictionary:
+	return stage_info(run.stage, run.seed, locked_areas(run))
+
+
+## What a boss's area looks like on the overworld right now:
+##   closed       not drawn this cycle ("Out of Office")
+##   open         can be picked next (walk in and its coworker challenges you)
+##   in_progress  picked: its coworker fight is next
+##   boss         its coworker is beaten: talk to the boss to fight
+##   waiting      another area is in progress; come back after
+##   cleared      boss beaten this cycle
+static func area_status(run: Dictionary, boss: String) -> String:
+	var inf := current_stage(run)
+	var cycle: int = inf.cycle
+	if not cycle_bosses(run.seed, cycle).has(boss):
+		return "closed"
+	if inf.kind == "bonus":
+		return "cleared"
+	var locked := locked_areas(run)
+	var order := cycle_order(run.seed, cycle, locked)
+	var g: int = inf.index / (MINIONS_PER_BOSS + 1)
+	var pos := order.find(boss)
+	if pos < g:
+		return "cleared"
+	if inf.kind == "boss":
+		return "boss" if pos == g else "waiting"
+	if locked.size() > g:
+		return "in_progress" if pos == g else "waiting"
+	return "open"
+
+
+## The player picks an area to take on next. Returns true if it's now (or already
+## was) the area in progress.
+static func lock_area(run: Dictionary, boss: String) -> bool:
+	var status := area_status(run, boss)
+	if status == "in_progress":
+		return true
+	if status != "open":
+		return false
+	var inf := current_stage(run)
+	var g: int = inf.index / (MINIONS_PER_BOSS + 1)
+	var locked: Array = cycle_order(run.seed, inf.cycle, locked_areas(run)).slice(0, g)
+	locked.append(boss)
+	if not run.has("locked"):
+		run.locked = {}
+	run.locked[str(inf.cycle)] = locked
+	return true
+
+
 ## What a stage is: {kind: minion|boss|bonus, cycle, index, boss, remix, title}.
-static func stage_info(stage: int, seed := 0) -> Dictionary:
+## locked: the areas the player picked this cycle (see cycle_order).
+static func stage_info(stage: int, seed := 0, locked: Array = []) -> Dictionary:
 	var cycle := stage / STAGES_PER_CYCLE
 	var index := stage % STAGES_PER_CYCLE
 	if index == STAGES_PER_CYCLE - 1:
 		return {"kind": "bonus", "cycle": cycle, "index": index, "boss": "", "remix": cycle > 0, "title": "Villiam Burginson's"}
 	var group := MINIONS_PER_BOSS + 1
-	var bosses := cycle_bosses(seed, cycle)
+	var bosses := cycle_order(seed, cycle, locked)
 	var boss: String = bosses[(index / group) % bosses.size()]
 	if index % group == MINIONS_PER_BOSS:
 		var remix := is_remix(seed, cycle, boss)
@@ -105,8 +177,8 @@ static func scaling(stage: int) -> Dictionary:
 
 
 ## Enemy ids for a stage. Bosses fight solo; the crew is the three-person final boss.
-static func stage_enemies(stage: int, rng: Rng, seed := 0) -> Array:
-	var info := stage_info(stage, seed)
+static func stage_enemies(stage: int, rng: Rng, seed := 0, locked: Array = []) -> Array:
+	var info := stage_info(stage, seed, locked)
 	if info.kind == "bonus":
 		return EnemyData.BURGER_CREW.duplicate()
 	if info.kind == "boss":
@@ -173,9 +245,9 @@ static func hero_stats(h: Dictionary, meta: Dictionary) -> Dictionary:
 # ------------------------------------------------------------------ fights
 ## Call before each fight. Returns {lines: story to show, unlocked: new achievements}.
 static func start_fight(run: Dictionary, meta: Dictionary) -> Dictionary:
-	var info := stage_info(run.stage, run.seed)
+	var info := current_stage(run)
 	var lines := []
-	if run.stage == 0:
+	if run.stage == 0 and not run.get("intro_seen", false):
 		lines += Story.RUN_INTRO
 	if info.kind == "boss":
 		lines += Story.boss_intro(info.boss, info.remix)
@@ -190,10 +262,10 @@ static func start_fight(run: Dictionary, meta: Dictionary) -> Dictionary:
 ## interrupted by closing the app replays the same way when the run is resumed.
 static func build_battle(run: Dictionary, meta: Dictionary) -> Battle:
 	var rng := run_rng(run)
-	var info := stage_info(run.stage, run.seed)
+	var info := current_stage(run)
 	var s := scaling(run.stage)
 	var enemies := []
-	for id in stage_enemies(run.stage, rng, run.seed):
+	for id in stage_enemies(run.stage, rng, run.seed, locked_areas(run)):
 		var e := {"id": id, "hp_mult": s.hp * (BOSS_HP_MULT if info.kind == "boss" else 1.0), "atk_mult": s.atk, "remix": info.remix}
 		if info.kind == "boss" and run.rival_empowered:
 			e.hp_mult *= RunEvents.RIVAL_EMPOWERED.hp
@@ -226,7 +298,7 @@ static func build_battle(run: Dictionary, meta: Dictionary) -> Battle:
 ## {pto, sauce, weapon: {hero, id} or {}, full_heal, picks, unlocked}.
 static func finish_fight(run: Dictionary, battle: Battle, meta: Dictionary) -> Dictionary:
 	var rng := run_rng(run)
-	var info := stage_info(run.stage, run.seed)
+	var info := current_stage(run)
 	var boss: bool = info.kind == "boss"
 	run.next_fight = []
 	if boss:

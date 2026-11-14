@@ -102,12 +102,22 @@ func center_pos() -> Vector3:
 	return global_position + Vector3(0, height * 0.55, 0)
 
 
-## A hero shown outside battle (title screen, Suit Up): no unit, just a model.
-func setup_preview(hero_id: String, model_key: String) -> void:
-	key = hero_id
-	side = "hero"
-	color = Color(HeroData.HEROES[hero_id].color)
+## A character shown outside battle (title screen, overworld): no unit, just a model.
+func setup_preview(id: String, model_key: String, unit_side := "hero") -> void:
+	key = id
+	side = unit_side
+	if unit_side == "hero":
+		color = Color(HeroData.HEROES[id].color)
+	else:
+		color = Color(ENEMY_LOOKS.get(id, {}).get("color", "#888888"))
+	_ghostly = id == "ghost"
 	set_model(model_key)
+
+
+## Plays a looping animation (walk, idle) without restarting it every frame.
+func loop_anim(n: String) -> void:
+	if _anim and _anim.current_animation != n:
+		play(n)
 
 
 # ------------------------------------------------------------------ models

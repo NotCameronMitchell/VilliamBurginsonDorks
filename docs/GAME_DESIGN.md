@@ -46,6 +46,26 @@ the door. The bosses' areas are the Parking Lot, Desk Pods, Meeting Room, Middle
 the Office and James's Old Desk. After the third boss, the elevator goes down to
 **Villiam Burginson's**.
 
+**The office map (built):**
+- **Layout:** the lobby (with the elevator and the Front Desk) opens onto a long
+  hallway, and the five boss areas each have one door off the hallway.
+- **Picking the order:** you choose which open area to take on next.
+  1. Walk through an area's door and the coworker watching it spots you ("!"),
+     walks up, says a line, and the coworker fight starts.
+  2. Win, and they step aside. Talk to the boss at the back of the room to fight
+     them.
+  3. Until that boss is beaten, the other areas' coworkers tell you to finish up
+     first.
+- **Walking the hallway's middle** never trips a coworker, so you can look around
+  before picking.
+- **Controls:** WASD / arrows or a gamepad stick to walk, and E / Space / Enter or the
+  on-screen button to talk. Tapping the floor walks there, through doorways; tapping
+  a person walks over and talks to them. Phones also get a virtual joystick.
+- **HP carries over** between fights and shows in the corner, along with the
+  cycle's progress and PTO Hours.
+- **Dialogue:** the coworkers' lines, the Front Desk and the office regulars are in
+  `scripts/data/story.gd` (`OVERWORLD`).
+
 **Returning bosses.** A boss you've beaten can come back in a later cycle, with a
 slightly different look and one new trick (see "Remixes" under each boss). The first
 time you meet a boss, it's always the original version. After that, each time it's

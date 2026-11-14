@@ -39,6 +39,14 @@ Press **F5** in Godot (or run the project). The main menu has:
 - **Achievements:** all 22, with the skins each one unlocks.
 - **Hall of Fame:** your best runs.
 
+**In the office (overworld):**
+- **Walk** with WASD / arrows, a gamepad, or the on-screen joystick (phones), or tap
+  where to go.
+- **Pick an open area.** Its coworker spots you at the door for a fight; then talk to
+  the boss at the back of the room.
+- **Talk** with E / Space / Enter, the on-screen button, or by tapping someone.
+- **After three bosses**, take the elevator in the lobby down to Villiam Burginson's.
+
 In battle:
 
 - **Tap a move** to use it. Moves that hit one enemy then ask you to tap a target
@@ -55,9 +63,15 @@ victory and ultimate animations. Rebuild them with
 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md) to tweak their looks or swap in
 hand-made models.
 
-**Test flags** (after `--`): `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`,
-`--remix`, `--auto`, `--skip-story`, `--speed=3`, `--save-dir=user://test/`, and
-`--shots=<dir>` to save screenshots. For example:
+**Test flags** (after `--`):
+- **Fights:** `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`, `--remix`.
+- **Playback:** `--auto` (the AI plays, including walking the office), `--skip-story`,
+  `--speed=3`.
+- **Saves and screens:** `--save-dir=user://test/` (a separate save profile),
+  `--continue` (resume the saved run), `--touch` (show the joystick), and
+  `--shots=<dir>` to save screenshots.
+
+For example:
 
 ```
 godot --path . -- --fight=copilot --party=sam,sarah,cole,cam
@@ -91,6 +105,9 @@ Village Sauce upgrades. This is the main balance check.
   `battle_hud.gd` and `unit_plate.gd` are the UI; `unit_view.gd` and `arena.gd` the 3D stage
 - `scenes/run/run_overlay.gd`: loot, upgrade cards, shop and event panels
 - `scenes/menu/menu_panels.gd`: Suit Up, Sauce Shop, Achievements and Hall of Fame
+- `scenes/overworld/`: the office: `overworld.gd` (walking, followers, coworkers,
+  bosses, talking), `office_map.gd` (rooms, walls, doors, props, paths),
+  `overworld_hud.gd` (progress, party health, dialogue, joystick)
 - `scripts/ui/ui_theme.gd`: colors, fonts and the panel/button style
 
 ## Status
@@ -106,4 +123,4 @@ Village Sauce upgrades. This is the main balance check.
 - [x] Main menu: Suit Up (party and skins), Sauce Shop, Achievements, Hall of Fame
 - [x] Blender models for every hero, skin, boss, remix and minion (generated, animated)
 - [ ] Hand-polished models and arenas
-- [ ] Overworld office map
+- [x] Overworld office map: walk the office, pick the boss order, coworker line-of-sight fights, elevator to the burger joint
