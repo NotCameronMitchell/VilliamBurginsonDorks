@@ -56,10 +56,13 @@ In battle:
 - **Auto** lets the AI play, **1x/2x** speeds up the animations, and **Settings**
   has the Copilot pop-up timer (Normal / Long / Off) and text speed.
 
-**Characters** are low-poly 3D models built in Blender by `art/tools/make_models.py`:
-every hero, skin, boss, remix and minion, with idle, attack, cast, hit, stunned, faint,
-victory and ultimate animations. Rebuild them with
-`powershell -File art/tools/run_blender.ps1`. See
+**Characters and battle arenas** are low-poly 3D models built in Blender by
+`art/tools/make_models.py`.
+- **Characters:** every hero, skin, boss, remix and minion, with idle, attack, cast,
+  hit, stunned, faint, victory and ultimate animations.
+- **Arenas:** all seven battle arenas.
+
+Rebuild everything with `powershell -File art/tools/run_blender.ps1`. See
 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md) to tweak their looks or swap in
 hand-made models.
 
@@ -122,5 +125,6 @@ Village Sauce upgrades. This is the main balance check.
   from the title: party pick, fights, upgrade picks, shop, events, game over
 - [x] Main menu: Suit Up (party and skins), Sauce Shop, Achievements, Hall of Fame
 - [x] Blender models for every hero, skin, boss, remix and minion (generated, animated)
+- [x] Battle arenas built in Blender (all seven), with per-arena lighting and a lower Pokemon-style battle camera
 - [ ] Hand-polished models and arenas
 - [x] Overworld office map: walk the office, pick the boss order, coworker line-of-sight fights, elevator to the burger joint

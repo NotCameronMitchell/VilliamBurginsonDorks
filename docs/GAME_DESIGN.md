@@ -76,6 +76,19 @@ bottom left, enemies in the top right. Attack animations play on the 3D models,
 the camera punches in on crits, and ultimates get a full-screen cut-in banner
 (TRANSFER TO UW, NISSAN TITAN, ...).
 
+**Arenas (built):** every fight happens in its area's own arena, so a coworker
+fight in the Parking Lot is in the Parking Lot.
+- **Moods:**
+  - **Parking Lot:** sunset, with the semi parked behind the Trucker.
+  - **Desk Pods:** cool blue cubicles.
+  - **Meeting Room:** dark, with a glowing chart on the big screen.
+  - **Middle of the Office:** pink and purple, with speaker towers and a DJ table.
+  - **James's Old Desk:** dim and foggy.
+  - **Villiam Burginson's:** warm checker floor, the counter, booths and the
+    glowing Village Sauce on display.
+- **Camera:** the battle camera looks about 24° down, low enough to see each room's
+  back wall behind the enemies.
+
 **Battle HUD:**
 - A name plate for each unit with an HP bar that drains smoothly (green → yellow → red),
   a level/rank pip, and status icons.

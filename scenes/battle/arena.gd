@@ -1,26 +1,36 @@
 class_name Arena
 extends Node3D
-## The battle stage: sky, ground, the two Pokemon-style battle platforms, and a few
-## props per location. Built from primitives until the Blender arenas exist
-## (assets/models/arenas/<id>.glb replaces the props when present).
+## The battle stage: the arena model (assets/models/arenas/<id>.glb, built in Blender
+## by art/tools/arenas.py), its lighting and mood, and the two Pokemon-style battle
+## platforms. Falls back to a few primitive props if an arena model is missing.
 
-const HERO_CENTER := Vector3(-2.6, 0, 2.4)
+const HERO_CENTER := Vector3(-2.6, 0, 1.9)
 const ENEMY_CENTER := Vector3(2.3, 0, -0.3)
 
 ## Hero spots: front row first (closer to the enemies), then back row. Spread in x
 ## so nobody hides behind anyone from the camera's angle.
-const HERO_SPOTS := [Vector3(-1.4, 0, 1.6), Vector3(-3.3, 0, 1.4), Vector3(-2.2, 0, 3.2), Vector3(-4.1, 0, 3.0)]
+const HERO_SPOTS := [Vector3(-1.4, 0, 1.1), Vector3(-3.3, 0, 0.9), Vector3(-2.2, 0, 2.7), Vector3(-4.1, 0, 2.5)]
 ## Enemy spots: the middle first (where a solo boss stands), then around it.
 const ENEMY_SPOTS := [Vector3(2.3, 0, -0.3), Vector3(0.9, 0, 0.3), Vector3(3.7, 0, -0.8), Vector3(1.6, 0, -1.5), Vector3(3.2, 0, 0.9)]
 
+## Per arena: sky / fog color, the floor color around the model, the sun
+## [color, energy, pitch, yaw], ambient [color, energy], fog density, whether
+## glowing things bloom, and the battle platforms [rim, top].
 const LOOKS := {
-	"office": {"sky": "#bfe3ff", "ground": "#7d8fa6", "label": "The Office"},
-	"parking_lot": {"sky": "#ffd7a8", "ground": "#4a4d55", "label": "Parking Lot"},
-	"desk_pods": {"sky": "#d9e8ff", "ground": "#6f7f99", "label": "Desk Pods"},
-	"meeting_room": {"sky": "#2a2f4a", "ground": "#5b5f7a", "label": "Meeting Room"},
-	"office_center": {"sky": "#ffd1ec", "ground": "#8a7fa6", "label": "Middle of the Office"},
-	"james_desk": {"sky": "#9fb3d9", "ground": "#6a7489", "label": "James's Old Desk"},
-	"villiam_burginson": {"sky": "#ffe08a", "ground": "#c0392b", "label": "Villiam Burginson's"},
+	"office": {"label": "The Office", "sky": "#a9c9e8", "ground": "#55657e", "sun": ["#fff4e0", 0.95, -50, -35],
+		"ambient": ["#e8eeff", 0.36], "fog": 0.0015, "glow": true, "platform": ["#c9cfdb", "#8b9bb8"]},
+	"parking_lot": {"label": "Parking Lot", "sky": "#ffc98f", "ground": "#4a4d55", "sun": ["#ffd2a0", 1.25, -30, -60],
+		"ambient": ["#ffe2c4", 0.42], "fog": 0.002, "glow": true, "platform": ["#f5f5f0", "#5b5e68"]},
+	"desk_pods": {"label": "Desk Pods", "sky": "#b9d3f5", "ground": "#435a80", "sun": ["#ffffff", 0.95, -55, -30],
+		"ambient": ["#e8eeff", 0.36], "fog": 0.0015, "glow": true, "platform": ["#c9d3e6", "#7f95bf"]},
+	"meeting_room": {"label": "Meeting Room", "sky": "#262b45", "ground": "#454c72", "sun": ["#d6deff", 0.95, -60, -20],
+		"ambient": ["#c4ceff", 0.5], "fog": 0.003, "glow": true, "platform": ["#a9b0cc", "#6a73a0"]},
+	"office_center": {"label": "Middle of the Office", "sky": "#f5bfe0", "ground": "#6a5090", "sun": ["#ffe6f5", 0.95, -50, -40],
+		"ambient": ["#ffe0f5", 0.38], "fog": 0.0015, "glow": true, "platform": ["#e5c9f5", "#9b78c4"]},
+	"james_desk": {"label": "James's Old Desk", "sky": "#6f83a9", "ground": "#4f6286", "sun": ["#b8c8ff", 0.75, -55, -25],
+		"ambient": ["#a8b8e8", 0.34], "fog": 0.008, "glow": true, "platform": ["#b9c3d6", "#7487a8"]},
+	"villiam_burginson": {"label": "Villiam Burginson's", "sky": "#ffd66b", "ground": "#c0392b", "sun": ["#ffe0b0", 1.05, -50, -30],
+		"ambient": ["#fff0d0", 0.42], "fog": 0.002, "glow": true, "platform": ["#ffd23f", "#f4f1e8"]},
 }
 
 var id := "office"
@@ -34,30 +44,37 @@ func build(arena_id: String) -> void:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(look.sky)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color.WHITE
-	e.ambient_light_energy = 0.55
+	e.ambient_light_color = Color(look.ambient[0])
+	e.ambient_light_energy = look.ambient[1]
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.fog_enabled = true
 	e.fog_light_color = Color(look.sky)
-	e.fog_density = 0.012
+	e.fog_density = look.fog
+	if look.glow:
+		e.glow_enabled = true
+		e.glow_intensity = 0.7
+		e.glow_bloom = 0.05
+		e.glow_hdr_threshold = 1.0
 	env.environment = e
 	add_child(env)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -35, 0)
-	sun.light_energy = 1.1
+	sun.light_color = Color(look.sun[0])
+	sun.light_energy = look.sun[1]
+	sun.rotation_degrees = Vector3(look.sun[2], look.sun[3], 0)
 	sun.shadow_enabled = true
 	add_child(sun)
 
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(60, 60)
+	plane.size = Vector2(80, 80)
 	ground.mesh = plane
 	ground.material_override = _mat(Color(look.ground))
+	ground.position.y = -0.03
 	add_child(ground)
 
-	_platform(HERO_CENTER, Vector2(3.4, 2.3))
-	_platform(ENEMY_CENTER, Vector2(3.6, 2.4))
+	_platform(HERO_CENTER, Vector2(3.4, 2.3), look.platform)
+	_platform(ENEMY_CENTER, Vector2(3.6, 2.4), look.platform)
 
 	var glb := "res://assets/models/arenas/%s.glb" % id
 	if ResourceLoader.exists(glb):
@@ -85,14 +102,15 @@ func _box(size: Vector3, pos: Vector3, c: Color, rot_y := 0.0) -> MeshInstance3D
 	return mi
 
 
-## A Pokemon-style oval battle platform with a rim.
-func _platform(center: Vector3, radii: Vector2) -> void:
-	for layer in [[1.0, 0.06, "#e9e2c7"], [0.86, 0.075, "#c9e7a7"]]:
+## A Pokemon-style oval battle platform: a rim and a raised top.
+func _platform(center: Vector3, radii: Vector2, colors: Array) -> void:
+	for layer in [[1.0, 0.05, colors[0]], [0.86, 0.065, colors[1]]]:
 		var mi := MeshInstance3D.new()
 		var c := CylinderMesh.new()
 		c.top_radius = 1.0
 		c.bottom_radius = 1.0
 		c.height = layer[1]
+		c.radial_segments = 48
 		mi.mesh = c
 		mi.material_override = _mat(Color(layer[2]))
 		mi.scale = Vector3(radii.x * layer[0], 1, radii.y * layer[0])
@@ -100,26 +118,15 @@ func _platform(center: Vector3, radii: Vector2) -> void:
 		add_child(mi)
 
 
+## Fallback scenery if an arena model hasn't been built.
 func _props() -> void:
 	match id:
 		"parking_lot":
 			for x in range(-12, 14, 4):
 				_box(Vector3(0.15, 0.01, 3.0), Vector3(x, 0, -8), Color("#f1c40f"))
-			_box(Vector3(2.6, 2.6, 6.5), Vector3(7.0, 0, -9.0), Color("#c0392b"), 15) # the semi
-			_box(Vector3(2.4, 2.0, 2.2), Vector3(6.2, 0, -5.0), Color("#a93226"), 15)
-		"desk_pods", "office":
-			for p in [Vector3(-7, 0, -9), Vector3(-3, 0, -10), Vector3(8, 0, -8), Vector3(9, 0, -2)]:
-				_box(Vector3(2.6, 1.0, 1.4), p, Color("#d7c4a3"))
-				_box(Vector3(2.6, 1.5, 0.08), p + Vector3(0, 1.0, -0.7), Color("#95a5a6"))
-		"meeting_room":
-			_box(Vector3(6.0, 0.9, 2.2), Vector3(1.0, 0, -9.0), Color("#5d4037"))
-			_box(Vector3(5.0, 2.8, 0.1), Vector3(1.0, 0.6, -12.0), Color("#ecf0f1")) # the screen
-		"office_center":
-			_box(Vector3(1.0, 2.2, 1.0), Vector3(6.5, 0, -7.0), Color("#2d2d2d")) # the speaker
-			_box(Vector3(1.0, 2.2, 1.0), Vector3(-4.5, 0, -8.0), Color("#2d2d2d"))
-		"james_desk":
-			_box(Vector3(3.0, 1.0, 1.5), Vector3(5.8, 0, -6.0), Color("#8d6e63"))
-			_box(Vector3(1.1, 0.7, 0.08), Vector3(5.8, 1.0, -6.3), Color("#1e272e"))
+			_box(Vector3(2.6, 2.6, 6.5), Vector3(7.0, 0, -9.0), Color("#c0392b"), 15)
 		"villiam_burginson":
-			_box(Vector3(9.0, 1.2, 1.2), Vector3(2.0, 0, -9.0), Color("#f39c12")) # the counter
-			_box(Vector3(9.0, 1.6, 0.1), Vector3(2.0, 2.4, -10.5), Color("#2c3e50")) # menu board
+			_box(Vector3(9.0, 1.2, 1.2), Vector3(2.0, 0, -9.0), Color("#f39c12"))
+		_:
+			for p in [Vector3(-7, 0, -9), Vector3(-3, 0, -10), Vector3(8, 0, -8)]:
+				_box(Vector3(2.6, 1.0, 1.4), p, Color("#d7c4a3"))

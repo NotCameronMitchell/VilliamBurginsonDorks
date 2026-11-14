@@ -815,6 +815,14 @@ func test_models() -> void:
 		if EnemyData.ENEMIES[id].has("remix_name") and not ResourceLoader.exists("res://assets/models/bosses/%s_remix.glb" % id):
 			missing.append(id + "_remix")
 	check(missing.is_empty(), "every skin, boss, remix and minion has a model (missing: %s)" % ", ".join(missing))
+	# Every battle arena has its Blender model, and every boss's arena exists.
+	for id in Arena.LOOKS:
+		var path := "res://assets/models/arenas/%s.glb" % id
+		var scene: PackedScene = load(path) if ResourceLoader.exists(path) else null
+		var meshes := scene.instantiate().find_children("*", "MeshInstance3D", true, false) if scene else []
+		check(not meshes.is_empty(), "arena %s has a model" % id)
+	for b in EnemyData.BOSS_POOL + EnemyData.BURGER_CREW:
+		check(Arena.LOOKS.has(EnemyData.ENEMIES[b].get("arena", "")), "%s's arena has a look" % b)
 
 
 static func upgraded_meta(level: int) -> Dictionary:

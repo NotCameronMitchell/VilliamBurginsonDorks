@@ -4,16 +4,20 @@ Builds every character with chibi.py and exports them for the game.
     blender --factory-startup -b -P art/tools/make_models.py -- [options]
 
 Options (after --):
-    --only a,b,c     just these model ids (e.g. cole,trucker)
-    --no-export      don't write .glb files
-    --no-blend       don't save art/characters.blend
-    --render DIR     render preview PNGs of each model's poses into DIR
-    --log FILE       write progress here (Blender's console isn't always visible)
+    --only a,b,c        just these ids (characters or arenas, e.g. cole,parking_lot)
+    --characters-only   skip the arenas
+    --arenas-only       skip the characters
+    --no-export         don't write .glb files
+    --no-blend          don't save the .blend lineups
+    --render DIR        render preview PNGs of each character's poses into DIR
+    --log FILE          write progress here (Blender's console isn't always visible)
 
 Writes:
-    assets/models/heroes|bosses|minions/<id>.glb   what the game loads
+    assets/models/heroes|bosses|minions/<id>.glb   characters the game loads
+    assets/models/arenas/<id>.glb                   battle arenas (art/tools/arenas.py)
     art/characters.blend                            the base heroes, bosses and
                                                     minions in a lineup, to edit by hand
+    art/arenas.blend                                all seven arenas side by side
 """
 
 import os
@@ -134,10 +138,55 @@ def render_previews(arm, name, out_dir):
 def main():
     if LOG and os.path.exists(LOG):
         os.remove(LOG)
-    clear_scene()
     only = set(arg("--only").split(",")) if arg("--only") else None
-    render_dir = arg("--render")
     do_export = not arg("--no-export")
+    count = 0
+    if not arg("--arenas-only"):
+        count += build_characters(only, arg("--render"), do_export)
+    if not arg("--characters-only"):
+        count += build_arenas(only, do_export)
+    log("DONE %d models" % count)
+
+
+def export_static(obj, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True,
+                              export_animations=False, export_yup=True)
+
+
+def build_arenas(only, do_export):
+    """Battle arenas (art/tools/arenas.py) -> assets/models/arenas/<id>.glb, plus
+    art/arenas.blend with all of them side by side."""
+    import arenas
+    clear_scene()
+    count = 0
+    for i, aid in enumerate(arenas.ARENA_IDS):
+        if only and aid not in only:
+            continue
+        try:
+            obj = arenas.build(aid)
+            if do_export:
+                export_static(obj, os.path.join(ROOT, "assets", "models", "arenas", aid + ".glb"))
+            count += 1
+            log("built arenas/%s" % aid)
+            if only:
+                bpy.data.objects.remove(obj, do_unlink=True)
+            else:
+                obj.location.x = i * 45.0
+        except Exception:
+            log("FAILED arena %s:\n%s" % (aid, traceback.format_exc()))
+    if not only and not arg("--no-blend"):
+        path = os.path.join(ROOT, "art", "arenas.blend")
+        bpy.ops.wm.save_as_mainfile(filepath=path, compress=True)
+        log("saved %s" % path)
+    return count
+
+
+def build_characters(only, render_dir, do_export):
+    clear_scene()
     lineup_x = {"heroes": 0.0, "bosses": 0.0, "minions": 0.0}
     lineup_y = {"heroes": 0.0, "bosses": 3.0, "minions": 6.0}
     count = 0
@@ -163,7 +212,7 @@ def main():
         path = os.path.join(ROOT, "art", "characters.blend")
         bpy.ops.wm.save_as_mainfile(filepath=path, compress=True)
         log("saved %s" % path)
-    log("DONE %d models" % count)
+    return count
 
 
 main()

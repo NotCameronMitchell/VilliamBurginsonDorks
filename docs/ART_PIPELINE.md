@@ -42,6 +42,38 @@ right way on its own.
 `hips → leg.L / leg.R`. Hand-made models can use any skeleton, as long as the action
 names match.
 
+## Battle arenas
+
+The seven battle arenas are built the same way, by `art/tools/arenas.py`: the generic
+office, the five boss areas and Villiam Burginson's.
+
+- **Output:** `assets/models/arenas/<id>.glb`, plus `art/arenas.blend` with all seven
+  side by side.
+- **Look:** each arena is one low-poly mesh: a tiled floor, a back wall with windows,
+  and the props. Highlights:
+  - **Parking Lot:** the Trucker's semi.
+  - **Desk Pods:** cubicle pods.
+  - **Meeting Room:** the big screen and the glass wall.
+  - **Middle of the Office:** the Guardian's speaker towers and DJ table.
+  - **James's Old Desk:** his desk, golf bag and putting green.
+  - **Villiam Burginson's:** the counter, kitchen, booths and the glowing Village
+    Sauce.
+- **Lighting and platforms:** the battle screen adds per-arena lighting, fog, glow
+  and battle platforms (`LOOKS` in `scenes/battle/arena.gd`).
+
+```
+powershell -File art/tools/run_blender.ps1 --arenas-only                 # all arenas
+powershell -File art/tools/run_blender.ps1 --arenas-only --only parking_lot
+```
+
+**Where scenery shows on screen:**
+- **The fight:** layouts use game coordinates. Keep props out of x -6.5..6.5 for
+  z > -3.5, where the platforms are.
+- **The backdrop:** the band behind the enemies (x about -3..7, z -4..-11) is what
+  shows best.
+- **The edges:** far left and right are mostly covered by the name plates.
+- **Replacing an arena:** export a hand-made `.glb` over the generated one.
+
 ## Folders
 
 - `art/`: Blender source files (`.blend`). Godot ignores this folder (`art/.gdignore`).

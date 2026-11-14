@@ -8,8 +8,9 @@ enum State { STORY, PLAYING, INPUT, TARGETING, POPUP, OVER }
 
 ## Behind and above the heroes, looking across at the enemies; framed so the units
 ## sit above the bottom HUD strip.
-const CAM_POS := Vector3(-1.4, 6.0, 10.6)
-const CAM_LOOK := Vector3(0.1, -1.3, -0.4)
+## Lower angle (about 24 degrees down) so the arena behind the enemies shows.
+const CAM_POS := Vector3(-1.3, 5.0, 11.0)
+const CAM_LOOK := Vector3(0.2, -0.2, -0.6)
 const CAM_FOV := 38.0
 const DMG_COLORS := {
 	"hit": Color.WHITE, "poison": Color("#7cff4f"), "bleed": Color("#ff4f6d"), "burn": Color("#ff9a1f"),
@@ -452,6 +453,8 @@ func _play(ev: Dictionary) -> float:
 				_auto_popup()
 			return 0.0
 		"spawn":
+			if views.has(ev.uid):
+				return 0.0 # already on stage (spawned before the first frame)
 			var u := b.unit(ev.uid)
 			_add_unit(u)
 			hud.message("%s appeared!" % u.name)
