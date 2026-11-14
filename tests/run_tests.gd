@@ -25,6 +25,14 @@ func _init() -> void:
 	test_ghost()
 	test_burger_crew()
 	test_bosses_finish()
+	test_stage_info()
+	test_new_run()
+	test_run_flow()
+	test_events()
+	test_achievements_and_outfits()
+	test_saves()
+	if OS.get_environment("FULL_RUN") == "1":
+		full_run_report()
 	if OS.get_environment("BALANCE") == "1":
 		balance_report()
 	if OS.get_environment("BOSSES") == "1":
@@ -280,7 +288,7 @@ func test_sales_guy() -> void:
 	check(b.mog == 5, "sales guy: Aura caps at 5")
 	check(is_equal_approx(b.mult(cole), 0.7), "sales guy: 5 Aura = -30%% hero damage (got %.2f)" % b.mult(cole))
 	check(is_equal_approx(b.mult(cam), 1.0), "sales guy: Cam is immune to Mogged")
-	check(is_equal_approx(sg.dodge, 0.45), "sales guy: +5% dodge per Aura")
+	check(is_equal_approx(sg.dodge, 0.35), "sales guy: +3% dodge per Aura")
 	b.act(cam.uid, "attack")
 	check(b.mog == 4 and b.stats.aura_stolen == 1, "sales guy: Cam steals an Aura stack per turn")
 	var b2 := Battle.new(party(["cole"]), boss_wave(["sales_guy"], true), 4)
@@ -475,6 +483,250 @@ func _boss_table(label: String, slot: int, fights: int, remix: bool, n: int, cyc
 			print("  %-14s win %3d%%  rounds %4.1f  worst %3d%% (%s)  best %3d%% (%s)" % [
 				ids[0] if ids.size() == 1 else "burger crew", roundi(100.0 * wins / total), float(rounds) / total,
 				roundi(worst[0] * 100), worst[1], roundi(best[0] * 100), best[1]])
+
+
+# ------------------------------------------------------------------ run loop
+func test_stage_info() -> void:
+	var kinds := []
+	for s in Run.STAGES_PER_CYCLE:
+		kinds.append(Run.stage_info(s, 1).kind)
+	check(kinds == ["minion", "boss", "minion", "boss", "minion", "boss", "bonus"], "run: a cycle is minion/boss x3 then the burger joint (%s)" % str(kinds))
+	var remixes := 0
+	var later := 0
+	var bad_remix := false
+	for seed in 200:
+		var c0 := Run.cycle_bosses(seed, 0)
+		var unique := {}
+		for b in c0:
+			unique[b] = true
+		if unique.size() != 3:
+			check(false, "run: 3 different bosses per cycle (seed %d)" % seed)
+			return
+		for s in range(Run.STAGES_PER_CYCLE, 2 * Run.STAGES_PER_CYCLE):
+			var info := Run.stage_info(s, seed)
+			if info.kind != "boss":
+				continue
+			if c0.has(info.boss):
+				later += 1
+				if info.remix:
+					remixes += 1
+			elif info.remix:
+				bad_remix = true
+		for s in Run.STAGES_PER_CYCLE:
+			if Run.stage_info(s, seed).remix:
+				bad_remix = true
+	check(not bad_remix, "run: only bosses you've already met come back as remixes, never in cycle 1")
+	var rate := float(remixes) / later
+	check(rate > 0.35 and rate < 0.65, "run: returning bosses are remixed about half the time (%d%%)" % roundi(rate * 100))
+	check(Run.stage_info(Run.STAGES_PER_CYCLE * 2 - 1, 5).remix, "run: the crew is the Late Night Crew from cycle 2")
+	check(Run.stage_info(3, 9).title == EnemyData.ENEMIES[Run.stage_info(3, 9).boss].name, "run: boss stages are titled with the boss's name")
+
+
+func test_new_run() -> void:
+	var meta := SaveGame.fresh_meta()
+	meta.upgrades = {"signing": 2, "mentor": 1, "second_wind": 1}
+	var run := Run.new_run(meta, 42, ["sam", "sarah", "cole", "cam"])
+	check(run.heroes.size() == 4 and run.heroes[0].id == "sam", "run: starts with the chosen party")
+	check(run.pto == 30 and run.second_wind, "run: Signing Bonus and Second Wind apply")
+	var ranked := 0
+	for h in run.heroes:
+		check(h.hp == Run.hero_stats(h, meta).max_hp, "run: %s starts at full HP" % h.id)
+		for k in h.ranks:
+			ranked += h.ranks[k] - 1
+	check(ranked == 4, "run: Mentorship gives each hero a rank-up (%d)" % ranked)
+	var b := Run.build_battle(run, meta)
+	check(b.heroes().size() == 4 and b.enemies().size() >= 2, "run: first fight is a minion wave")
+	var b2 := Run.build_battle(run, meta)
+	check(b.enemies().map(func(e): return e.key) == b2.enemies().map(func(e): return e.key), "run: rebuilding a fight gives the same enemies")
+
+
+## Plays a whole run headlessly with the AI, picking upgrades, shop items and
+## event choices at random. Returns {cleared, rounds, run, deaths}.
+func simulate_run(seed: int, meta: Dictionary, party: Array, max_stage := 40) -> Dictionary:
+	var run := Run.new_run(meta, seed, party)
+	var rounds := []
+	while run.stage < max_stage:
+		Run.start_fight(run, meta)
+		var battle := Run.build_battle(run, meta)
+		var outcome := BattleAI.auto_battle(battle)
+		rounds.append(battle.round)
+		if outcome != "win":
+			if Run.use_second_wind(run, meta):
+				continue
+			Run.game_over(run, meta)
+			break
+		var res := Run.finish_fight(run, battle, meta)
+		var rng := Run.run_rng(run)
+		for step in res.picks:
+			Run.apply_upgrade(run, meta, rng.pick(Run.roll_draft(run, rng, step, res.picks)))
+		for item in rng.shuffle(Run.roll_shop(run, meta, rng)):
+			Run.buy_item(run, meta, item)
+		Run.save_rng(run, rng)
+		var ev := Run.advance(run)
+		if not ev.is_empty():
+			var r2 := Run.run_rng(run)
+			RunEvents.apply(ev.id, r2.int_range(0, ev.choices.size() - 1), run, meta)
+			Run.save_rng(run, r2)
+	return {"cleared": run.stage, "rounds": rounds, "run": run}
+
+
+func test_run_flow() -> void:
+	var meta := SaveGame.fresh_meta()
+	var r := simulate_run(7, meta, ["cole", "cam", "james", "mason"], 8)
+	check(r.cleared >= 1, "run: the AI clears at least the first fight (cleared %d)" % r.cleared)
+	check(meta.stats.get("fights_won", 0) == r.cleared, "run: wins are counted in meta stats")
+	check(meta.achievements.has("first_day"), "run: First Day on the Job unlocks")
+	# Ghost fight: James comes back at half health afterwards.
+	var run := Run.new_run(meta, 3, ["cole", "cam", "james", "mason"])
+	var b := Battle.new(party(["cole", "cam", "james", "mason"]), boss_wave(["ghost"]), 1)
+	BattleAI.auto_battle(b)
+	for s in 50:
+		if Run.stage_info(s, run.seed).boss == "ghost" and Run.stage_info(s, run.seed).kind == "boss":
+			run.stage = s
+			break
+	if b.outcome == "win" and Run.stage_info(run.stage, run.seed).boss == "ghost":
+		Run.finish_fight(run, b, meta)
+		var james := Run.hero_state(run, "james")
+		check(james.hp == roundi(Run.hero_stats(james, meta).max_hp * 0.5), "run: James is back at 50% HP after his ghost")
+		check(Run.hero_state(run, "cole").hp == Run.hero_stats(Run.hero_state(run, "cole"), meta).max_hp, "run: everyone else is healed by the boss win")
+	# Shop and drafts
+	var rng := Rng.new(5)
+	var shop := Run.roll_shop(run, meta, rng)
+	check(shop[0].kind == "heal" and shop.size() >= 5, "run: the shop always has snacks and at least 5 items")
+	var draft := Run.roll_draft(run, rng, 0)
+	check(draft.size() == 3 and draft.all(func(u): return u.kind == "rank"), "run: the first draft pick is all ability upgrades")
+	run.pto = 100
+	var item: Dictionary = shop[0]
+	check(Run.buy_item(run, meta, item) and run.pto == 90 and item.sold, "run: buying works")
+	check(not Run.buy_item(run, meta, item), "run: can't buy the same item twice")
+	# Second Wind and catch-up sauce
+	var m2 := SaveGame.fresh_meta()
+	var run2 := Run.new_run(m2, 1, ["cole", "cam", "james", "mason"])
+	check(not Run.use_second_wind(run2, m2), "run: no Second Wind without the upgrade")
+	check(Run.game_over(run2, m2).catch_up == 5 and m2.sauce == 5, "run: early wipes give 5 catch-up sauce")
+
+
+func test_events() -> void:
+	var meta := SaveGame.fresh_meta()
+	for e in RunEvents.LIST:
+		for i in e.choices.size():
+			var run := Run.new_run(meta, 11, ["cole", "cam", "mason", "james"])
+			RunEvents.apply(e.id, i, run, meta)
+			check(run.heroes.all(func(h): return h.hp >= 1), "event %s:%d keeps everyone alive" % [e.id, i])
+	var run := Run.new_run(meta, 11, ["cole", "cam", "mason", "james"])
+	RunEvents.apply("renekton", 1, run, meta)
+	run.stage = 1
+	var b := Run.build_battle(run, meta)
+	check(b.enemies()[0].name.ends_with("(Empowered)"), "event: hanging up on Renekton empowers the next boss")
+	RunEvents.apply("renekton", 0, run, meta)
+	var atk_before: float = Run.hero_stats(run.heroes[0], meta).atk
+	var b2 := Run.build_battle(run, meta)
+	check(b2.heroes()[0].atk == atk_before + 5, "event: Renekton Buff gives +5 attack next fight")
+	var seen := {}
+	var r2 := Run.new_run(meta, 5, ["sam", "sarah", "james", "cam"])
+	r2.stage = 2
+	var rng := Rng.new(3)
+	for i in 200:
+		var ev := RunEvents.roll(r2, rng)
+		if not ev.is_empty():
+			seen[ev.id] = true
+	check(not seen.has("the_local") and not seen.has("pool_party"), "event: hero events need their hero in the party")
+	check(seen.size() <= 3, "event: each event happens at most once per cycle")
+
+
+func test_achievements_and_outfits() -> void:
+	for o in Outfits.all():
+		if o.has("achievement"):
+			check(not Achievements.by_id(o.achievement).is_empty(), "outfit %s's achievement exists" % o.id)
+	for id in HeroData.HERO_IDS:
+		var free := Outfits.for_hero(id).filter(func(o): return not o.has("achievement") and not o.has("cost"))
+		check(free.size() >= 2, "%s has 2 free skins from the start" % id)
+	var meta := SaveGame.fresh_meta()
+	for a in Achievements.LIST:
+		Achievements.check(a.id, {"meta": meta}) # runs without errors on an empty context
+	var c := {"meta": meta, "boss": "trucker", "party": ["cole"], "kind": "boss", "fight": {"cole_stunned": false}}
+	check(Achievements.check("paid_in_full", c), "achievement: Paid in Full")
+	c.fight.cole_stunned = true
+	check(not Achievements.check("paid_in_full", c), "achievement: not if Cole was stunned")
+	var got := Achievements.check_all({"meta": meta, "boss": "ghost", "kind": "boss", "party": [], "fight": {}})
+	check(got.any(func(a): return a.id == "who_you_gonna_call"), "achievement: Who You Gonna Call")
+	check(Outfits.owns(meta, Outfits.by_id("james_ghost")), "achievement skins unlock")
+	check(not Outfits.owns(meta, Outfits.by_id("sam_throne")), "locked skins stay locked")
+
+
+func test_saves() -> void:
+	var dir := "user://test_saves/"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var meta := SaveGame.fresh_meta()
+	meta.sauce = 12
+	meta.achievements.append("promoted")
+	var run := Run.new_run(meta, 99, ["sam", "sarah", "james", "cam"])
+	Run.apply_upgrade(run, meta, {"kind": "rank", "hero": "sam", "ability": "rage_bait"})
+	SaveGame.save_meta(meta, dir)
+	SaveGame.save_run(run, dir)
+	var m2 := SaveGame.load_meta(dir)
+	var r2 := SaveGame.load_run(dir)
+	check(m2.sauce == 12 and m2.achievements == ["promoted"], "save: meta round-trips")
+	check(r2.seed == 99 and r2.heroes[0].ranks.rage_bait == 2 and typeof(r2.stage) == TYPE_INT, "save: run round-trips with ints")
+	var b := Run.build_battle(r2, m2)
+	check(b.heroes().size() == 4, "save: a loaded run builds a fight")
+	SaveGame.record_run(r2, dir)
+	check(SaveGame.load_board(dir).size() >= 1, "save: Hall of Fame records runs")
+	SaveGame.save_run({}, dir)
+	check(SaveGame.load_run(dir).is_empty(), "save: clearing the run works")
+	for f in [SaveGame.META, SaveGame.BOARD]:
+		DirAccess.remove_absolute(dir + f)
+
+
+static func upgraded_meta(level: int) -> Dictionary:
+	var m := SaveGame.fresh_meta()
+	m.upgrades = {"vet": level, "sauce": level, "signing": mini(5, level), "benefits": mini(5, level), "mentor": mini(3, level / 3)}
+	if level >= 5:
+		m.upgrades.second_wind = 1
+	return m
+
+
+## The original's balance report: whole runs, random 4-of-6 parties, at several
+## levels of Village Sauce upgrades.
+func full_run_report() -> void:
+	var n := int(OS.get_environment("RUNS")) if OS.get_environment("RUNS") != "" else 60
+	var all_parties := combos(HeroData.HERO_IDS, 4)
+	var spc := Run.STAGES_PER_CYCLE
+	for lvl in [0, 3, 6, 10]:
+		var cleared := []
+		var by_kind := {"minion": [], "boss": [], "bonus": []}
+		var by_boss := {}
+		var deaths := {}
+		for i in n:
+			var seed := 1000 + i
+			var p: Array = all_parties[seed % all_parties.size()]
+			var r := simulate_run(seed, upgraded_meta(lvl), p)
+			cleared.append(r.cleared)
+			for s in r.rounds.size():
+				var info := Run.stage_info(s, seed)
+				by_kind[info.kind].append(r.rounds[s])
+				if info.kind == "boss":
+					var key: String = info.boss + ("*" if info.remix else "")
+					if not by_boss.has(key):
+						by_boss[key] = []
+					by_boss[key].append(r.rounds[s])
+			var d := Run.stage_info(r.cleared, seed)
+			var dk: String = "%d-%d%s" % [d.cycle + 1, d.index + 1, {"boss": "B", "bonus": "$", "minion": ""}[d.kind]]
+			deaths[dk] = deaths.get(dk, 0) + 1
+		cleared.sort()
+		var pct := func(f: Callable) -> String: return "%d%%" % roundi(100.0 * cleared.filter(f).size() / n)
+		print("\nmeta %d: reached burger 1: %s, beat it: %s, beat burger 2: %s" % [lvl,
+			pct.call(func(c): return c >= spc - 1), pct.call(func(c): return c > spc - 1), pct.call(func(c): return c > 2 * spc - 1)])
+		var keys := deaths.keys()
+		keys.sort()
+		print("meta %d: died at %s" % [lvl, ", ".join(keys.map(func(k): return "%s:%d" % [k, deaths[k]]))])
+		var avg := func(a: Array) -> String: return "%.1f" % (a.reduce(func(x, y): return x + y, 0) / maxf(1.0, a.size()))
+		print("meta %d: fights won p10=%d p50=%d p90=%d  rounds: minion %s boss %s bonus %s" % [lvl,
+			cleared[int(0.1 * (n - 1))], cleared[int(0.5 * (n - 1))], cleared[int(0.9 * (n - 1))],
+			avg.call(by_kind.minion), avg.call(by_kind.boss), avg.call(by_kind.bonus)])
+		var bk := by_boss.keys()
+		bk.sort()
+		print("meta %d: boss rounds %s" % [lvl, ", ".join(bk.map(func(k): return "%s %s" % [k, avg.call(by_boss[k])]))])
 
 
 # ------------------------------------------------------------------ balance

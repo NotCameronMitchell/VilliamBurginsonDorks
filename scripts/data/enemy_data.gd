@@ -94,7 +94,7 @@ const ENEMIES := {
 	"guardian": {
 		"name": "The Guardian of Tunes", "remix_name": "Holiday Playlist Guardian", "boss": true, "arena": "office_center",
 		"blurb": "She controls the office speaker. She has one playlist. It is on repeat.",
-		"hp": 260, "atk": 12, "style": "cast", "color": "#ff7ae0",
+		"hp": 220, "atk": 12, "style": "cast", "color": "#ff7ae0",
 		"quotes": ["Maroon 5 makes really good songs.", "Don't you just love Justin Bieber for the 10th time today?"],
 		"skills": [
 			{"id": "baby", "name": "Baby (10th Play Today)", "cd": 5, "first": 3, "ult": true},
@@ -287,7 +287,7 @@ static func steal_aura(b: Battle, cam: BattleUnit) -> void:
 
 
 static func _sync_aura(b: Battle, sg: BattleUnit) -> void:
-	sg.dodge = ENEMIES.sales_guy.dodge + 0.05 * b.mog
+	sg.dodge = ENEMIES.sales_guy.dodge + 0.03 * b.mog
 
 
 static func on_death(b: Battle, u: BattleUnit) -> void:

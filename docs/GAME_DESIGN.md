@@ -225,8 +225,8 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 - **HP** 260 · **ATK** 12 · **Dodge** 20%
 - **Aura (passive):** he gains 1 Aura stack every turn (max 5). Each stack gives the
-  whole party *Mogged*: -6% damage per stack. He never speaks: every speech bubble is
-  just "*aura*" with a sparkle.
+  whole party *Mogged*: -6% damage per stack. He also gets +3% dodge per stack. He
+  never speaks: every speech bubble is just "*aura*" with a sparkle.
 - **Jawline Reveal (ultimate, every 5 turns):** he slowly turns to the side. Each hero
   has a 35% chance to lose their turn staring, and the rest are Weakened 20% for 2 turns.
 - **Silent Stare:** 120% ATK to one hero. Gains +1 Aura if it crits.
@@ -267,7 +267,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *She controls the office speaker. She has one playlist. It is on repeat.*
 
-- **HP** 260 · **ATK** 12
+- **HP** 220 · **ATK** 12
 - **On Repeat (passive):** every turn she plays a song, and the party gets 1
   *Earworm* stack: -8% damage reduction per stack (so they take more damage), max 5.
 - **The Boombox:** a separate enemy on her platform (60 HP). Breaking it stops the
@@ -337,17 +337,11 @@ crew / cook / coworker fight.
 > jokes come from the burger job and the sauce gatekeeping. Tell me if you want a
 > different name.
 
-**Boss simulator check.** Every boss was simulated against all 15 parties, scaled like
-the original (first boss ×1.8 HP / ×2.0 ATK, third boss ×5.8 / ×4.4, crew ×4.8 / ×3.8)
-with a rough stand-in for hero upgrades. In cycle 1:
-- First-slot bosses take 5-6 rounds.
-- Third-slot bosses take 10-15 rounds, with the Guardian and the Ghost longest.
-- The crew takes about 10 rounds and wins 99%.
+**Boss fights are solo.** The original's bosses brought 2 minions. The sequel's bosses
+fight alone (the Guardian brings her Boombox), which keeps their gimmicks readable
+and makes the 3D staging simpler. The crew is the only multi-enemy boss fight.
 
-In cycle 2 the remixed crew wins about 8%. That's close to the original's 18% at the
-same point, and it will move once the real run loop (shop, upgrade picks) is ported.
-Smoothing the cycle scaling (change #2 below) happens with the run loop. Run
-`BOSSES=1` with `tests/run_tests.gd` to see the report.
+**Balance check:** see "Full-run results" at the end of section 5.
 
 ## 5. Balance changes
 
@@ -368,8 +362,8 @@ The simulator says:
 
 | # | Change | Why |
 |---|---|---|
-| 1 | Boss HP -15%, or hero damage +10% in cycle 1. Target about 9 rounds per boss. | Boss fights are too long. |
-| 2 | Smooth `scaling()` so the third boss isn't a spike. | The 6B death clusters. |
+| 1 | **Done:** bosses get 85% of the stage's HP scaling. Target about 9 rounds per boss. | Boss fights are too long. |
+| 2 | **Done:** gentler cycle ramp (HP ×2.1 per cycle, was ×2.4; ATK ×1.9, was ×2.1), steeper ATK within a cycle (+0.85 per stage, was +0.6), and the crew scaled like stage 3 (was 4). | The 6B death clusters, and the crew was a wall. |
 | 3 | **Transfer to UW:** triple damage becomes double, and the full max HP shield becomes 50%. Still heals to full. | Heal + 100% shield + 3× damage is the strongest button in the game. |
 | 4 | **Daily Dollar:** scales off ATK instead of James's max HP, and goes to cooldown 3. | 20% of 150 HP is about 2.5× his ATK as unavoidable flat damage on a 2-turn cooldown. |
 | 5 | **Stuns on bosses:** each stun after the first in a fight lasts 1 turn less (minimum 1), and Resolve lasts 2 turns. | Iceland Story + Nissan Titan + Mind Goblin can stun-lock a boss. |
@@ -377,11 +371,38 @@ The simulator says:
 | 7 | **Secret Sauce / Seasoned Veterans:** +5%/+6% per level becomes +3%/+4%, max level stays 10. | Max meta trivializes the game. |
 | 8 | **New early-game catch-up:** if the party wipes before burger 1, they get +5 Village Sauce. | Soften the 0-meta start. |
 
-Every change gets re-checked with the simulator once combat is ported.
+All eight changes are in the code.
 
 **Win-rate targets (0 meta / max meta):**
 - Reach burger 1: 60% / 100%
 - Beat burger 2: 15% / 70%
+
+### Full-run results
+
+Whole runs played by the AI: 100 runs per meta level, random 4-of-6 parties, random
+upgrade, shop and event picks. Run it with `FULL_RUN=1` (and `RUNS=<n>`) on
+`tests/run_tests.gd`.
+
+| Meta level | Reach burger 1 | Beat burger 1 | Beat burger 2 |
+|---|---|---|---|
+| 0 | 90% | 73% | 13% |
+| 3 | 93% | 87% | 28% |
+| 6 | 98% | 98% | 52% |
+| 10 (max) | 99% | 99% | 68% |
+
+- **Beat burger 2 is on target:** 13% at 0 meta and 68% at max meta (targets 15% and 70%).
+- **Boss fights** average 10-11 rounds (target 9). Originals take 8-13 depending on
+  the boss, with the Guardian the longest. Remixes take 10-16.
+- **Still off target: cycle 1 is too easy at 0 meta.** 90% of runs reach the first
+  crew, where the target is 60%. Making cycle 1 harder in the simulator also pushes
+  burger 2 under target, and the AI doesn't play like a person. So this gets
+  settled by playtesting once the battle screen exists.
+- **Where runs end:** at 0 meta, mostly at the first crew, the cycle 2 bosses and the
+  second crew. That's the curve we want.
+
+**Other tuning from this pass:**
+- Guardian of Tunes HP 260 → 220.
+- Sales Guy +3% dodge per Aura stack (was +5%).
 
 ## 6. Achievements
 
@@ -454,3 +475,10 @@ animation. See [ART_PIPELINE.md](ART_PIPELINE.md).
 - **The original's bosses** (Middle Manager, Corporate Mascot, Legacy Code, HR Rep,
   Logistics Director) do **not** return. The combat engine and the four heroes carry
   over, and **two new heroes** join the roster, so you pick 4 of 6.
+- **Run loop:** carried over from the original (upgrade drafts, Break Room Shop, PTO
+  Hours, Village Sauce, random events, Second Wind), with three changes:
+  - Bosses fight solo.
+  - Hanging up on Renekton empowers your *next* boss, since the original's rival boss
+    is retired.
+  - After the Ghost fight, James comes back at 50% HP while everyone else is healed
+    to full.

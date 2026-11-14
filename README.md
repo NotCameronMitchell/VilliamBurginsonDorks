@@ -37,6 +37,8 @@ godot --headless --path . --script res://tests/run_tests.gd
 Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. Add
 `BALANCE_DETAIL=<hero id>` to see where that hero's damage comes from. Set
 `BOSSES=1` for every boss against every party, at the original's enemy scaling.
+Set `FULL_RUN=1` (optionally `RUNS=100`) to simulate whole runs at four levels of
+Village Sauce upgrades. This is the main balance check.
 
 ## Code
 
@@ -46,6 +48,9 @@ Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. A
 - `scripts/data/enemy_data.gd`: minions, the six bosses, their remixes and gimmicks
 - `scripts/data/story.gd`: the run intro, burger joint lines, and each boss's lines
 - `scripts/game/battle_ai.gd`: the AI used by tests and the Auto button
+- `scripts/game/run.gd`: the run loop: stages, enemy scaling, rewards, drafts and the shop
+- `scripts/game/save_game.gd`: saves (meta progress, run in progress, Hall of Fame)
+- `scripts/data/`: also `run_events.gd`, `achievements.gd`, `outfits.gd`, `meta_upgrades.gd`
 
 ## Status
 
@@ -54,7 +59,7 @@ Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. A
 - [x] Combat engine and the 4 original heroes, ported from the original (with the balance changes)
 - [x] Sam and Sarah, tuned with the simulator
 - [x] The six new bosses and their remixes, with intro and defeat lines
+- [x] Run loop: stages, scaling, drafts, shop, events, achievements, skins, saves
 - [ ] Battle scene and Pokemon-style HUD
 - [ ] First Blender models (heroes)
 - [ ] Overworld office map
-- [ ] Achievements, skins, saves

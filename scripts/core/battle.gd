@@ -31,7 +31,7 @@ var stats := {
 	"we_go_next": false, "cole_revived": false, "blackjack": false, "titan_hits": 0,
 	"rage_bait_crits": 0, "sam_damaged": false, "best_dab": 0,
 	"cole_stunned": false, "aura_stolen": 0, "popups": 0, "popups_dismissed": 0,
-	"boomboxes": 0, "james_possessed": false, "silenced": false,
+	"boomboxes": 0, "james_possessed": false, "silenced": false, "sarah_boss_kills": 0,
 }
 ## Boss state
 var mog := 0 ## the Mystery Sales Guy's Aura stacks: -6% hero damage each (not Cam)
@@ -434,6 +434,8 @@ func damage(u: BattleUnit, amount: int, kind: String, crit := false, src: Battle
 	if src and src.side == "hero" and u.key == "sauce_keeper":
 		EnemyData.sauce_keeper_hit(self, u)
 	if u.hp <= 0:
+		if u.boss and src and src.side == "hero" and src.key == "sarah":
+			stats.sarah_boss_kills += 1
 		kill(u)
 
 
