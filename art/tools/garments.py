@@ -697,8 +697,8 @@ def paint_top(bd, look_top, model_id, S=1024):
         cv.line([top_px, bot_px], 0.018 * ppm, col * 0.80, alpha=0.8)
         pk = [fr.px(x, z) for x, z in ((0.04, 0.03), (0.04, -0.05), (0.11, -0.05), (0.11, 0.03))]
         cv.line(pk + [pk[0]], 0.004 * ppm, col * 0.70)
-    if tp == "jersey":
-        t0, t1 = [hexc(c) for c in look_top.get("trim", ["#ff0000", "#00ff00"])]
+    if tp == "jersey" and look_top.get("crest"):  # only when an outfit asks for one
+        t0, t1 = [hexc(c) for c in (look_top.get("trim", ["#ff0000", "#00ff00"]) * 2)[:2]]
         crest = fr.px(0.085, 0.06)
         cv.ellipse(crest[0], crest[1], 0.022 * ppm, 0.026 * ppm, t0)
         cv.ellipse(crest[0], crest[1], 0.009 * ppm, 0.024 * ppm, t1)
