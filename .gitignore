@@ -7,11 +7,11 @@ export_presets.cfg
 # Builds
 /build/
 
-# Reference photos of real people never go in the repo (keep them in Pictures/Villiam Burginson Dorks)
+# Reference photos of real people never go in the repo (the originals live in
+# Pictures/Villiam Burginson Dorks; copies for uploading go in art/heroes/photos/)
 art/heroes/photos/
-art/heroes/**/*.jpg
-art/heroes/**/*.jpeg
-art/heroes/**/*.heic
+# AI concept art made from those photos (not used by the MakeHuman route)
+art/heroes/*/concept_*
 
 # Blender autosaves and backups
 *.blend1

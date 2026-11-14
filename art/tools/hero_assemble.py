@@ -992,20 +992,171 @@ def render_sheet(arm, clips, out_path, cols=6):
     log("  preview: %s" % out_path)
 
 
+def render_portrait(arm, out_path):
+    """A rest-pose check image: full body from the front, plus a close-up of the face."""
+    scene = bpy.context.scene
+    ad = arm.animation_data
+    muted = []
+    if ad:
+        for t in ad.nla_tracks:
+            muted.append((t, t.mute))
+            t.mute = True
+    scene.frame_set(0)
+    for engine in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH"):
+        try:
+            scene.render.engine = engine
+            break
+        except TypeError:
+            continue
+    if scene.render.engine == "BLENDER_WORKBENCH":
+        scene.display.shading.light = "STUDIO"
+        scene.display.shading.color_type = "TEXTURE"
+    else:
+        world = scene.world or bpy.data.worlds.new("preview_world")
+        scene.world = world
+        try:
+            world.use_nodes = True
+        except Exception:
+            pass
+        bg = next((n for n in world.node_tree.nodes if n.type == "BACKGROUND"), None)
+        if bg:
+            bg.inputs[0].default_value = (0.55, 0.57, 0.62, 1)
+            bg.inputs[1].default_value = 1.0
+        sun = bpy.data.objects.new("preview_sun", bpy.data.lights.new("preview_sun", "SUN"))
+        sun.data.energy = 3.0
+        sun.rotation_euler = (math.radians(50), 0, math.radians(-30))
+        scene.collection.objects.link(sun)
+    scene.render.resolution_x, scene.render.resolution_y = 1000, 900
+    scene.render.resolution_percentage = 100
+    cam = bpy.data.objects.new("portrait_cam", bpy.data.cameras.new("portrait_cam"))
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    top = max((arm.matrix_world @ b.tail_local).z for b in arm.data.bones)
+    tmp = tempfile.mkdtemp(prefix="vbd_portrait_")
+    shots = []
+    for name, loc, look, lens in (("body", (0.9 * top, -2.6 * top, 0.6 * top), (0, 0, 0.5 * top), 50),
+                                  ("face", (0.12 * top, -0.75 * top, 0.93 * top), (0, 0, 0.9 * top), 85)):
+        cam.location = loc
+        cam.rotation_euler = (Vector(look) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        cam.data.lens = lens
+        p = os.path.join(tmp, name + ".png")
+        scene.render.filepath = p
+        bpy.ops.render.render(write_still=True)
+        img = bpy.data.images.load(p)
+        px = np.empty(1000 * 900 * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        shots.append(px.reshape(900, 1000, 4))
+        bpy.data.images.remove(img)
+    sheet = np.concatenate(shots, axis=1)
+    out = bpy.data.images.new("portrait", sheet.shape[1], sheet.shape[0], alpha=False)
+    out.pixels.foreach_set(sheet.ravel())
+    out.filepath_raw = out_path
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+    bpy.data.objects.remove(cam, do_unlink=True)
+    for o in [o for o in bpy.data.objects if o.name.startswith("preview_sun")]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    for t, m in muted:
+        t.mute = m
+    scene.render.engine = "BLENDER_WORKBENCH"
+    log("  portrait: %s" % out_path)
+
+
 # --------------------------------------------------------------------------- export
+def texture_budget(name):
+    """Largest side for each kind of texture in the game files."""
+    n = name.lower()
+    if "eye" in n and "brow" not in n and "lash" not in n:
+        return 256
+    if "brow" in n or "lash" in n:
+        return 256
+    if "hair" in n or "shoe" in n:
+        return 512
+    return 1024  # skin, tops (prints and numbers), everything else
+
+
+SEE_THROUGH = ("hair", "brow", "lash", "eye")  # the only textures that need transparency
+
+
+def slim_materials():
+    """Game-sized textures: no normal/bump maps (the toon-ish look doesn't need them),
+    images scaled to texture_budget() and saved as JPEG; only hair, brows, lashes and eyes
+    keep transparency (everything else is made opaque, which also sorts correctly)."""
+    tmp = tempfile.mkdtemp(prefix="vbd_slim_")
+
+    def see_through(m):
+        names = [m.name.lower()] + [n.image.name.lower() for n in m.node_tree.nodes
+                                    if n.type == "TEX_IMAGE" and n.image]
+        return any(s in nm for nm in names for s in SEE_THROUGH)
+
+    for m in bpy.data.materials:
+        if not m.use_nodes or not m.node_tree:
+            continue
+        nt = m.node_tree
+        for node in list(nt.nodes):
+            if node.type in ("NORMAL_MAP", "BUMP"):
+                nt.nodes.remove(node)
+        if not see_through(m):
+            for link in list(nt.links):
+                if link.to_socket.name == "Alpha":
+                    nt.links.remove(link)
+            for attr, val in (("blend_method", "OPAQUE"), ("surface_render_method", "DITHERED")):
+                try:
+                    setattr(m, attr, val)
+                except Exception:
+                    pass
+        for node in list(nt.nodes):
+            if node.type == "TEX_IMAGE" and node.image and not node.outputs["Color"].links and \
+                    not node.outputs["Alpha"].links:
+                nt.nodes.remove(node)  # e.g. a normal map texture left without its node
+    done = set()
+    for m in bpy.data.materials:
+        if not m.use_nodes or not m.node_tree:
+            continue
+        for node in m.node_tree.nodes:
+            img = node.image if node.type == "TEX_IMAGE" else None
+            if img is None or img.name in done or img.size[0] == 0:
+                continue
+            done.add(img.name)
+            w, h = img.size
+            cap = texture_budget(img.name)
+            if max(w, h) > cap:
+                img.scale(max(1, w * cap // max(w, h)), max(1, h * cap // max(w, h)))
+            uses_alpha = bool(node.outputs["Alpha"].links) and see_through(m)
+            ext = "png" if uses_alpha else "jpg"
+            path = os.path.join(tmp, "%s.%s" % ("".join(c if c.isalnum() else "_" for c in img.name), ext))
+            img.filepath_raw = path
+            img.file_format = "PNG" if uses_alpha else "JPEG"
+            img.save()
+            try:
+                img.source = "FILE"
+                img.filepath = path
+                img.reload()
+            except Exception:
+                pass
+
+
 def export(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     for o in list(bpy.data.objects):
         if o.type not in ("ARMATURE", "MESH", "EMPTY"):
             bpy.data.objects.remove(o, do_unlink=True)
+    slim_materials()
+    # WebP: small, keeps transparency, and Godot reads it (its glTF JPEG decoding failed on these).
     opts = dict(filepath=path, export_format="GLB", use_selection=False, export_apply=False,
                 export_animations=True, export_animation_mode="NLA_TRACKS", export_skins=True,
-                export_yup=True, export_force_sampling=True, export_def_bones=False)
-    try:
-        bpy.ops.export_scene.gltf(**opts)
-    except TypeError:
-        opts.pop("export_def_bones", None)
-        bpy.ops.export_scene.gltf(**opts)
+                export_yup=True, export_force_sampling=True, export_def_bones=False,
+                export_image_format="WEBP", export_image_quality=88)
+    for drop in (None, "export_image_quality", "export_def_bones"):
+        if drop:
+            opts.pop(drop, None)
+        try:
+            bpy.ops.export_scene.gltf(**opts)
+            return
+        except TypeError:
+            continue
+    raise RuntimeError("glTF export failed")
 
 
 # --------------------------------------------------------------------------- main
@@ -1024,22 +1175,30 @@ def build(mid, motions_dir, mode):
     owner = H.motion_owner(mid)
     if mode == "mannequin":
         arm = build_mannequin(spec["height"])
+    elif mode == "makehuman":
+        import hero_mpfb
+        stock = arg("--stock")
+        log("%s: building with MakeHuman%s" % (mid, " (stock clothes: %s)" % stock if stock else ""))
+        arm = hero_mpfb.build(mid, stock_clothes=stock.split(",") if stock else None, log=log)
     elif mode == "test-body":
         arm = auto_rig(build_test_body(spec["height"]), spec["height"])
     else:
         folder = os.path.join(ROOT, "art", "heroes", mid)
         rigged = first_file(folder, ["rigged.glb", "rigged.fbx"])
         model = first_file(folder, ["model.glb", "model.obj", "model.fbx"])
-        if rigged:
+        if rigged and mode != "procedural":
             log("%s: using the rigged model %s" % (mid, os.path.basename(rigged)))
             arm = import_rigged(rigged, spec["height"])
-        elif model:
+        elif model and mode != "procedural":
             log("%s: auto-rigging %s" % (mid, os.path.basename(model)))
             arm = auto_rig(import_model(model), spec["height"])
         else:
-            log("SKIP %s: no model in art/heroes/%s/ yet (model.glb from Hunyuan 3D)" % (mid, mid))
-            return None
+            import hero_builder
+            log("%s: building in Blender (hero_looks.py)" % mid)
+            arm = hero_builder.build(mid)
     bpy.context.view_layer.update()
+    if arg("--looks-only"):
+        return arm, []
     rt = Retargeter(arm)
     log("%s: rig has %d bones; matched %d slots" % (mid, len(arm.data.bones), len(rt.tmap)))
     clips = []
@@ -1065,7 +1224,9 @@ def main():
     motions_dir = arg("--motions") or os.path.join(ROOT, "art", "heroes", "motion")
     out_dir = arg("--out") or os.path.join(ROOT, "assets", "models", "heroes")
     render_dir = arg("--render")
-    mode = "mannequin" if arg("--mannequin") else ("test-body" if arg("--test-body") else "auto")
+    mode = "mannequin" if arg("--mannequin") else ("test-body" if arg("--test-body") else
+                                                   ("procedural" if arg("--procedural") else
+                                                    ("makehuman" if arg("--makehuman") else "auto")))
     scene = bpy.context.scene
     scene.render.fps = 30
     built = 0
@@ -1075,11 +1236,18 @@ def main():
             if not res:
                 continue
             arm, clips = res
+            if arg("--looks-only"):  # quick check of the model: a portrait, no motions or export
+                if render_dir:
+                    os.makedirs(render_dir, exist_ok=True)
+                    render_portrait(arm, os.path.join(render_dir, mid + "_portrait.png"))
+                built += 1
+                continue
             if not clips:
                 log("SKIP %s: no motions" % mid)
                 continue
             if render_dir:
                 os.makedirs(render_dir, exist_ok=True)
+                render_portrait(arm, os.path.join(render_dir, mid + "_portrait.png"))
                 render_sheet(arm, clips, os.path.join(render_dir, mid + ("" if mode == "auto" else "_" + mode) + ".png"))
             if not arg("--no-export"):
                 arm.scale = arm.scale * H.GAME_SCALE

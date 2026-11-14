@@ -56,24 +56,24 @@ In battle:
 - **Auto** lets the AI play, **1x/2x** speeds up the animations, and **Settings**
   has the Copilot pop-up timer (Normal / Long / Off) and text speed.
 
-**Characters and battle arenas** are low-poly 3D models built in Blender by
-`art/tools/make_models.py`.
-- **Characters:** every hero, skin, boss, remix and minion, with idle, attack, cast,
-  hit, stunned, faint, victory and ultimate animations.
+**Heroes** are detailed, realistic models of the real people, built in Blender with free
+tools:
+- **Bodies and faces:** MakeHuman builds the bodies, faces, hair and rig, through the MPFB
+  add-on.
+- **Clothes:** generated from each hero's own body, so a skin is just data.
+- **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts, with
+  keyframed stand-ins until its text model is unlocked.
+
+Build them with `powershell -File art/tools/heroes.ps1 assemble --makehuman`. See "Detailed
+heroes" in [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
+
+**Everything else** is low-poly 3D models built in Blender by
+`art/tools/make_models.py`:
+- **Characters:** hero skins, bosses, remixes and minions, with idle, attack, cast, hit,
+  stunned, faint, victory and ultimate animations.
 - **Arenas:** all seven battle arenas.
 
-Rebuild everything with `powershell -File art/tools/run_blender.ps1`. See
-[docs/ART_PIPELINE.md](docs/ART_PIPELINE.md) to tweak their looks or swap in
-hand-made models.
-
-**Detailed heroes (in progress):** the heroes are being remade as detailed models of the
-real people, using free tools:
-- **Concept art:** Gemini turns each person's photo into concept art.
-- **Models:** Tencent's Hunyuan 3D builds the 3D model.
-- **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts, on this PC.
-- **Rig:** `art/tools/hero_assemble.py` auto-rigs each model and puts the motions on it.
-
-`art/tools/heroes.ps1` runs each step; see "Detailed heroes" in the art pipeline doc.
+Rebuild them with `powershell -File art/tools/run_blender.ps1`.
 
 **Test flags** (after `--`):
 - **Fights:** `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`, `--remix`.

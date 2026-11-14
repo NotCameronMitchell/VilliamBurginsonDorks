@@ -1,0 +1,1205 @@
+"""
+Clothes generated from each hero's own MakeHuman body, so any outfit (and any future skin)
+is just data in hero_looks.py:
+
+- A garment starts as a region of the body surface (chosen by which bone each vertex
+  follows), copied, smoothed and pushed outward. Its edges (neckline, sleeves, hem, leg
+  openings) are then cut with planes, so they run clean instead of following the body
+  mesh's zigzag. A V-neck is two cuts after a split down the middle.
+- It keeps the body's skin weights, so it moves exactly with the rig, and the body's UVs,
+  so prints, numbers, buttons and patterns land in the same place on every hero.
+- Skin that a garment fully covers is hidden, so nothing pokes through when animating.
+- Collars, cuffs, hems and waistbands are strips laid along the garment's cut edges.
+- Beards and stubble are painted into the hero's skin texture (soft edges, no gaps), which
+  is also tinted toward the hero's skin color.
+- Shoes are MakeHuman's (recolored); caps, glasses, sunglasses and watches are built here.
+
+dress(rig, basemesh, model_id) is called by hero_mpfb.build() before the meshes are baked.
+"""
+
+import importlib
+import math
+import os
+import tempfile
+
+import bmesh
+import bpy
+import numpy as np
+from mathutils import Vector, kdtree
+
+import hero_looks as L
+from hero_builder import Canvas, draw_digits, hexc
+
+B = "mixamorig:"
+TEXDIR = tempfile.mkdtemp(prefix="vbd_garment_tex_")
+SHOES = {"sneakers": "shoes05", "leather": "shoes01", "flats": "shoes04", "boots": "shoes03"}
+ARMS = ["LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand"]
+
+
+def lin(c):
+    c = np.asarray(c, dtype=float)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def sstep(e0, e1, v):
+    """Smoothstep from e0 (0) to e1 (1); e1 < e0 flips it."""
+    t = np.clip((v - e0) / (e1 - e0), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+# =========================================================================== body data
+class Body:
+    """Rest-pose facts about the MakeHuman body: positions, normals, bone weights, joints, UVs."""
+
+    def __init__(self, rig, obj):
+        self.rig, self.obj = rig, obj
+        me = obj.data
+        n = len(me.vertices)
+        co = np.empty(n * 3)
+        me.vertices.foreach_get("co", co)
+        mw = np.array(obj.matrix_world)
+        self.co = co.reshape(n, 3) @ mw[:3, :3].T + mw[:3, 3]
+        nr = np.empty(n * 3)
+        me.vertices.foreach_get("normal", nr)
+        self.nrm = nr.reshape(n, 3) @ mw[:3, :3].T
+        self.nrm /= np.maximum(np.linalg.norm(self.nrm, axis=1, keepdims=True), 1e-9)
+        gname = {g.index: g.name for g in obj.vertex_groups}
+        self.bones = [g.name for g in obj.vertex_groups if g.name.startswith(B)]
+        bidx = {b: i for i, b in enumerate(self.bones)}
+        self.W = np.zeros((n, len(self.bones)))
+        self.groups = {}
+        joint_ids = {}
+        for v in me.vertices:
+            for g in v.groups:
+                name = gname[g.group]
+                if name in bidx:
+                    self.W[v.index, bidx[name]] = g.weight
+                elif name.startswith("joint-"):
+                    joint_ids.setdefault(name, []).append(v.index)
+                else:
+                    self.groups.setdefault(name, []).append(v.index)
+        # MakeHuman's joint markers (small cubes at the eyes, mouth, jaw...), as points.
+        self.joints = {k[6:]: self.co[ids].mean(0) for k, ids in joint_ids.items()}
+        s = self.W.sum(1, keepdims=True)
+        self.W = np.where(s > 0, self.W / np.maximum(s, 1e-9), 0)
+        self.dom = np.array([self.bones[i] for i in self.W.argmax(1)])
+        self.weighted = s[:, 0] > 0
+        self.body = np.zeros(n, bool)
+        self.body[self.groups.get("body", [])] = True
+        rw = np.array(rig.matrix_world)
+        self.bh, self.bt = {}, {}
+        for b in rig.data.bones:
+            self.bh[b.name] = (rw @ np.append(np.array(b.head_local), 1))[:3]
+            self.bt[b.name] = (rw @ np.append(np.array(b.tail_local), 1))[:3]
+        self.faces = [tuple(p.vertices) for p in me.polygons]
+        self.face_mat = [p.material_index for p in me.polygons]
+        uvl = me.uv_layers.active.data
+        self.face_uv = [[tuple(uvl[li].uv) for li in p.loop_indices] for p in me.polygons]
+        self.vert_uv = np.zeros((n, 2))
+        cnt = np.zeros(n)
+        for f, uvs in zip(self.faces, self.face_uv):
+            for vi, uv in zip(f, uvs):
+                self.vert_uv[vi] += uv
+                cnt[vi] += 1
+        self.vert_uv /= np.maximum(cnt, 1)[:, None]
+        self.adj = [set() for _ in range(n)]
+        for f in self.faces:
+            for i in range(len(f)):
+                a, b_ = f[i], f[(i + 1) % len(f)]
+                self.adj[a].add(b_)
+                self.adj[b_].add(a)
+        zs = self.co[self.body, 2]
+        self.height = zs.max() - zs.min()
+        self.ground = zs.min()
+
+    def j(self, bone, end="h"):
+        return (self.bh if end == "h" else self.bt)[B + bone]
+
+    def param(self, bone):
+        """How far along `bone` (0 head .. 1 tail) every vertex sits."""
+        h, t = self.j(bone, "h"), self.j(bone, "t")
+        d = t - h
+        return ((self.co - h) @ d) / max(d @ d, 1e-9)
+
+    def is_dom(self, *bones):
+        return np.isin(self.dom, [B + b for b in bones])
+
+    def share(self, bones):
+        """Each vertex's total weight on `bones` (0..1)."""
+        idx = [self.bones.index(B + b) for b in bones if (B + b) in self.bones]
+        return self.W[:, idx].sum(1) if idx else np.zeros(len(self.co))
+
+    def nearest_body(self, point, sel=None):
+        cand = np.where(self.body if sel is None else sel)[0]
+        i = cand[np.argmin(np.linalg.norm(self.co[cand] - point, axis=1))]
+        return i
+
+
+# =========================================================================== regions
+# Regions are generous; the plane cuts in dress() set the real edges.
+def region_top(bd, sleeves, hem_z, neck_top_z):
+    m = bd.is_dom("Hips", "Spine", "Spine1", "Spine2", "LeftShoulder", "RightShoulder")
+    # The neck, and the throat (on men it follows the head bone): the neckline cut trims it.
+    m |= bd.is_dom("Neck", "Head") & (bd.co[:, 2] <= neck_top_z)
+    m &= bd.co[:, 2] >= hem_z
+    for side in ("Left", "Right"):
+        if sleeves in ("short", "cap", "none"):
+            t_end = {"short": 0.55, "cap": 0.22, "none": 0.22}[sleeves] + 0.18
+            m |= bd.is_dom(side + "Arm") & (bd.param(side + "Arm") <= t_end)
+        elif sleeves == "long":
+            m |= bd.is_dom(side + "Arm") | bd.is_dom(side + "ForeArm")
+    return m & bd.body
+
+
+def region_bottom(bd, kind, top_z):
+    m = (bd.is_dom("Hips") | bd.is_dom("Spine")) & (bd.co[:, 2] <= top_z)
+    for side in ("Left", "Right"):
+        if kind == "shorts":
+            m |= bd.is_dom(side + "UpLeg") & (bd.param(side + "UpLeg") <= 0.80)
+        else:
+            m |= bd.is_dom(side + "UpLeg") | bd.is_dom(side + "Leg")
+    return m & bd.body
+
+
+def region_head_top(bd, above_z):
+    return bd.is_dom("Head") & (bd.co[:, 2] >= above_z) & bd.body
+
+
+def erode(bd, mask, rings):
+    keep = mask.copy()
+    for _ in range(rings):
+        edge = [i for i in np.where(keep)[0] if any(not keep[j] for j in bd.adj[i])]
+        keep[edge] = False
+    return keep
+
+
+def tidy(bd, mask, rings=1):
+    """Removes thin spurs from a region (erode, then grow back inside the original)."""
+    core = erode(bd, mask, rings)
+    for _ in range(rings):
+        grow = core.copy()
+        for i in np.where(core)[0]:
+            for j in bd.adj[i]:
+                if mask[j]:
+                    grow[j] = True
+        core = grow
+    return core
+
+
+# =========================================================================== plane cuts
+# A cut is dict(co, no, where, split=False): remove what lies on the `no` side of the plane
+# through `co`, among the faces picked by `where` (so a neckline cut can't touch the arms).
+# where keys: xmax, zmin, zmax, ymin, ymax (box on face centers), xsign (+1 left / -1 right),
+# bones (every vertex mostly on these bones), not_bones (no vertex mostly on these), share.
+def where_faces(bm, obj, where):
+    dl = bm.verts.layers.deform.active
+
+    def gids(names):
+        return [obj.vertex_groups[B + b].index for b in names if (B + b) in obj.vertex_groups]
+
+    bi = gids(where["bones"]) if where.get("bones") else None
+    nbi = gids(where["not_bones"]) if where.get("not_bones") else None
+    thr = where.get("share", 0.5)
+
+    def vshare(v, ids):
+        if dl is None:
+            return 0.0
+        d = v[dl]
+        tot = sum(d.values())
+        return sum(d.get(i, 0.0) for i in ids) / tot if tot > 0 else 0.0
+
+    out = []
+    for f in bm.faces:
+        c = f.calc_center_median()
+        if "xmax" in where and abs(c.x) > where["xmax"]:
+            continue
+        if "zmin" in where and c.z < where["zmin"]:
+            continue
+        if "zmax" in where and c.z > where["zmax"]:
+            continue
+        if "ymin" in where and c.y < where["ymin"]:
+            continue
+        if "ymax" in where and c.y > where["ymax"]:
+            continue
+        if where.get("xsign") and c.x * where["xsign"] < 0:
+            continue
+        if bi is not None and not all(vshare(v, bi) > thr for v in f.verts):
+            continue
+        if nbi is not None and any(vshare(v, nbi) > thr for v in f.verts):
+            continue
+        out.append(f)
+    return out
+
+
+def where_verts(bd, where):
+    """The same selection as where_faces, on the body's vertices."""
+    m = np.ones(len(bd.co), bool)
+    x, y, z = bd.co[:, 0], bd.co[:, 1], bd.co[:, 2]
+    if "xmax" in where:
+        m &= np.abs(x) <= where["xmax"]
+    if "zmin" in where:
+        m &= z >= where["zmin"]
+    if "zmax" in where:
+        m &= z <= where["zmax"]
+    if "ymin" in where:
+        m &= y >= where["ymin"]
+    if "ymax" in where:
+        m &= y <= where["ymax"]
+    if where.get("xsign"):
+        m &= x * where["xsign"] >= 0
+    thr = where.get("share", 0.5)
+    if where.get("bones"):
+        m &= bd.share(where["bones"]) > thr
+    if where.get("not_bones"):
+        m &= ~(bd.share(where["not_bones"]) > thr)
+    return m
+
+
+def _edge_split_from_first():
+    """Whether bmesh.utils.edge_split's factor counts from the vertex it's given."""
+    bm = bmesh.new()
+    a, b_ = bm.verts.new((0, 0, 0)), bm.verts.new((1, 0, 0))
+    e = bm.edges.new((a, b_))
+    _, v = bmesh.utils.edge_split(e, a, 0.25)
+    ok = abs(v.co.x - 0.25) < 1e-6
+    bm.free()
+    return ok
+
+
+_SPLIT_FROM_FIRST = None
+
+
+def field_cut(bm, faces, field):
+    """Removes the part of `faces` where field(points) > 0, cutting exactly along field = 0
+    (a curved edge, e.g. a neckline that follows the neck all the way round)."""
+    global _SPLIT_FROM_FIRST
+    if not faces:
+        return
+    if _SPLIT_FROM_FIRST is None:
+        _SPLIT_FROM_FIRST = _edge_split_from_first()
+    verts = list({v for f in faces for v in f.verts})
+    fv = field(np.array([tuple(v.co) for v in verts]))
+    fv = np.where(np.abs(fv) < 1e-7, -1e-7, fv)  # nothing exactly on the line
+    val = {v: float(x) for v, x in zip(verts, fv)}
+    newv = []
+    for e in list({e for f in faces for e in f.edges}):
+        a, b_ = e.verts
+        if a not in val or b_ not in val:
+            continue
+        fa, fb = val[a], val[b_]
+        if (fa > 0) == (fb > 0):
+            continue
+        t = fa / (fa - fb)
+        _, nv = bmesh.utils.edge_split(e, a, t if _SPLIT_FROM_FIRST else 1.0 - t)
+        val[nv] = 0.0
+        newv.append(nv)
+    if newv:
+        bmesh.ops.connect_verts(bm, verts=newv)
+    dead = [f for f in bm.faces if all(v in val for v in f.verts) and any(val[v] > 0 for v in f.verts)]
+    if dead:
+        bmesh.ops.delete(bm, geom=dead, context="FACES")
+
+
+def apply_cut(bm, c, faces):
+    if not faces:
+        return
+    if "field" in c:
+        field_cut(bm, faces, c["field"])
+    else:
+        verts = list({v for f in faces for v in f.verts})
+        edges = list({e for f in faces for e in f.edges})
+        no = Vector(c["no"]).normalized()
+        bmesh.ops.bisect_plane(bm, geom=verts + edges + faces, dist=1e-6, plane_co=Vector(c["co"]), plane_no=no,
+                               use_snap_center=False, clear_outer=not c.get("split"), clear_inner=False)
+    loose_e = [e for e in bm.edges if not e.link_faces]
+    if loose_e:
+        bmesh.ops.delete(bm, geom=loose_e, context="EDGES")
+    loose = [v for v in bm.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm, geom=loose, context="VERTS")
+
+
+def cut_side(c, P):
+    """How far past the cut each point is (> 0: removed)."""
+    if "field" in c:
+        return c["field"](P)
+    no = np.asarray(c["no"], float)
+    return (P - np.asarray(c["co"], float)) @ (no / np.linalg.norm(no))
+
+
+def cut_keep(bd, c, margin=0.012):
+    """Body vertices safely inside a cut (for hiding the skin a garment covers)."""
+    if c.get("split"):
+        return np.ones(len(bd.co), bool)
+    aff = where_verts(bd, c.get("where", {}))
+    return ~(aff & (cut_side(c, bd.co) > -margin))
+
+
+def neckline(axis_y, z_side, front_drop, back_rise, v_depth=0.0, v_half=0.6, power=1.5):
+    """A neckline as a field for field_cut: its height goes round the neck (angle 0 = the
+    front), dipping `front_drop` in front and rising `back_rise` at the back, plus an
+    optional V of depth `v_depth` that is `v_half` radians wide each side. Because it
+    depends only on the angle, a big chest doesn't make the neckline plunge."""
+    def f(P):
+        th = np.arctan2(P[:, 0], -(P[:, 1] - axis_y))
+        c = (1 + np.cos(th)) / 2
+        h = z_side - front_drop * c ** power + back_rise * (1 - c) ** power
+        if v_depth > 0:
+            h = h - v_depth * np.clip(1 - np.abs(th) / v_half, 0, 1)
+        return P[:, 2] - h
+    return f
+
+
+# =========================================================================== geometry
+def make_mesh_object(name, verts, faces, uvs, weights, mats, face_mat, rig):
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(v) for v in verts], [], faces)
+    for m in mats:
+        me.materials.append(m)
+    if face_mat is not None:
+        me.polygons.foreach_set("material_index", face_mat)
+    if uvs is not None:
+        uvl = me.uv_layers.new(name="UVMap")
+        flat = [c for f in uvs for uv in f for c in uv]
+        uvl.data.foreach_set("uv", flat)
+    me.polygons.foreach_set("use_smooth", [True] * len(me.polygons))
+    me.update()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(obj)
+    groups = {}
+    for vi, w in enumerate(weights):
+        for bone, val in w.items():
+            if val > 1e-4:
+                groups.setdefault(bone, {}).setdefault(round(val, 3), []).append(vi)
+    for bone, byval in groups.items():
+        vg = obj.vertex_groups.new(name=bone)
+        for val, ids in byval.items():
+            vg.add(ids, val, "REPLACE")
+    obj.parent = rig
+    mod = obj.modifiers.new("Armature", "ARMATURE")
+    mod.object = rig
+    return obj
+
+
+def weights_of(bd, vi):
+    row = bd.W[vi]
+    return {bd.bones[k]: float(row[k]) for k in np.nonzero(row > 1e-4)[0]}
+
+
+def fix_weights(obj):
+    """Gives any vertex without skin weights (a cut can make some) its nearest neighbor's."""
+    me = obj.data
+    have = [v.index for v in me.vertices if any(g.weight > 1e-4 for g in v.groups)]
+    missing = [v.index for v in me.vertices if not any(g.weight > 1e-4 for g in v.groups)]
+    if not missing or not have:
+        return
+    tree = kdtree.KDTree(len(have))
+    for n_i, vi in enumerate(have):
+        tree.insert(me.vertices[vi].co, n_i)
+    tree.balance()
+    for vi in missing:
+        _, n_i, _ = tree.find(me.vertices[vi].co)
+        for g in me.vertices[have[n_i]].groups:
+            obj.vertex_groups[g.group].add([vi], g.weight, "REPLACE")
+
+
+def drape(bd, used, pts, fill):
+    """Fills hollows like fabric does: around each bone, every point is pushed out toward
+    the fuller points near it (same slice along the bone, same side), never inward."""
+    if fill <= 0:
+        return pts
+    out = pts.copy()
+    dom = bd.dom[used]
+    for bone in set(dom):
+        sel = np.where(dom == bone)[0]
+        if len(sel) < 12:
+            continue
+        h, t = bd.bh[bone], bd.bt[bone]
+        d = t - h
+        L2 = max(d @ d, 1e-9)
+        P = pts[sel]
+        s = ((P - h) @ d) / L2
+        axis = h + s[:, None] * d
+        R = P - axis
+        r = np.linalg.norm(R, axis=1)
+        dn = d / math.sqrt(L2)
+        ref = np.array([0, 0, 1.0]) if abs(dn[2]) < 0.9 else np.array([0, 1.0, 0])
+        e1 = np.cross(dn, ref)
+        e1 /= np.linalg.norm(e1)
+        e2 = np.cross(dn, e1)
+        ang = np.arctan2(R @ e2, R @ e1)
+        sb = np.clip(((s - s.min()) / max(1e-6, s.max() - s.min()) * 10).astype(int), 0, 9)
+        ab = ((ang + math.pi) / (2 * math.pi) * 10).astype(int) % 10
+        key = sb * 10 + ab
+        r_new = r.copy()
+        for kk in np.unique(key):
+            m = key == kk
+            q = np.quantile(r[m], 0.85)
+            r_new[m] = np.maximum(r[m], r[m] + (q - r[m]) * fill)
+        out[sel] = axis + R / np.maximum(r, 1e-9)[:, None] * r_new[:, None]
+    return out
+
+
+def smooth_loops(bm, iterations=10):
+    """Straightens open edges that weren't cut (the body mesh's zigzag)."""
+    bverts = [v for v in bm.verts if v.is_boundary]
+    for _ in range(iterations):
+        new = {}
+        for v in bverts:
+            nb = [e.other_vert(v) for e in v.link_edges if e.is_boundary]
+            if len(nb) == 2:
+                new[v] = v.co * 0.5 + (nb[0].co + nb[1].co) * 0.25
+        for v, c in new.items():
+            v.co = c
+
+
+def edge_loops(bm, obj):
+    """Each open edge loop as arrays: points P, surface normals N, the direction D that
+    runs along the surface into the garment, and each point's skin weights W."""
+    bm.normal_update()
+    dl = bm.verts.layers.deform.active
+    gname = {g.index: g.name for g in obj.vertex_groups}
+    nxt = {}
+    for e in bm.edges:
+        if e.is_boundary:
+            a, b_ = e.verts
+            nxt.setdefault(a, []).append(b_)
+            nxt.setdefault(b_, []).append(a)
+    seen, loops = set(), []
+    for start in list(nxt):
+        if start in seen:
+            continue
+        loop = [start]
+        seen.add(start)
+        prev, cur = None, start
+        while True:
+            cands = [v for v in nxt[cur] if v is not prev and v not in seen]
+            if not cands:
+                break
+            prev, cur = cur, cands[0]
+            loop.append(cur)
+            seen.add(cur)
+        if len(loop) < 6:
+            continue
+        closed = any(e.other_vert(loop[-1]) is loop[0] for e in loop[-1].link_edges if e.is_boundary)
+        P = np.array([tuple(v.co) for v in loop])
+        N = np.array([tuple(v.normal) for v in loop])
+        T = np.roll(P, -1, 0) - np.roll(P, 1, 0)
+        T /= np.maximum(np.linalg.norm(T, axis=1, keepdims=True), 1e-9)
+        D = np.cross(N, T)
+        D /= np.maximum(np.linalg.norm(D, axis=1, keepdims=True), 1e-9)
+        votes = 0.0
+        for i, v in enumerate(loop):
+            inner = [e.other_vert(v) for e in v.link_edges if not e.is_boundary]
+            if inner:
+                c = sum((u.co for u in inner), Vector()) / len(inner)
+                votes += float(np.dot(np.array(tuple(c - v.co)), D[i]))
+        if votes < 0:
+            D = -D
+        for _ in range(3):
+            D = 0.5 * D + 0.25 * (np.roll(D, 1, 0) + np.roll(D, -1, 0))
+            D /= np.maximum(np.linalg.norm(D, axis=1, keepdims=True), 1e-9)
+        W = [{gname[k]: w for k, w in v[dl].items() if k in gname} if dl else {} for v in loop]
+        loops.append(dict(P=P, N=N, D=D, W=W, closed=closed))
+    return loops
+
+
+def garment(bd, mask, name, offset, mat, rig, smooth=4, thickness=0.0035, loose=None, fill=0.0,
+            cuts=(), edge_smooth=0, snug=None):
+    """Copies the masked body faces into a garment mesh, pushed `offset` meters outward,
+    then cuts its edges. snug = (weight(points) -> 0..1, offset): where the weight is 1 the
+    fabric hugs the body at that offset instead (a neckline against the neck).
+    Returns (object, edge loops)."""
+    mask = tidy(bd, mask)
+    faces = [i for i, f in enumerate(bd.faces) if all(mask[v] for v in f)]
+    used = sorted({v for i in faces for v in bd.faces[i]})
+    remap = {v: k for k, v in enumerate(used)}
+    used_a = np.array(used)
+    pts = drape(bd, used_a, bd.co[used_a].copy(), fill)
+    verts = []
+    for k_, v in enumerate(used):
+        off = offset
+        if loose is not None:
+            off += loose(bd.co[v])
+        verts.append(pts[k_] + bd.nrm[v] * off)
+    if snug is not None:
+        wfun, soff = snug
+        w = np.clip(wfun(bd.co[used_a]), 0, 1)[:, None]
+        tight = bd.co[used_a] + bd.nrm[used_a] * soff
+        verts = list(np.array(verts) * (1 - w) + tight * w)
+    fl = [tuple(remap[v] for v in bd.faces[i]) for i in faces]
+    uvs = [bd.face_uv[i] for i in faces]
+    wts = [weights_of(bd, v) for v in used]
+    obj = make_mesh_object(name, verts, fl, uvs, wts, [mat], None, rig)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    if smooth:  # cloth doesn't show skin detail
+        inner = [v for v in bm.verts if not v.is_boundary]
+        for _ in range(smooth):
+            bmesh.ops.smooth_vert(bm, verts=inner, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    for c in cuts:
+        apply_cut(bm, c, where_faces(bm, obj, c.get("where", {})))
+    if edge_smooth:
+        smooth_loops(bm, edge_smooth)
+    if smooth:
+        inner = [v for v in bm.verts if not v.is_boundary]
+        bmesh.ops.smooth_vert(bm, verts=inner, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    loops = edge_loops(bm, obj)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    fix_weights(obj)
+    if thickness:
+        sol = obj.modifiers.new("Solidify", "SOLIDIFY")
+        sol.thickness = thickness
+        sol.offset = -1.0
+        sol.use_rim = True
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.modifier_move_to_index(modifier="Solidify", index=0)
+        bpy.ops.object.modifier_apply(modifier="Solidify")
+    return obj, loops
+
+
+def strip(name, edge, profile, mat, rig):
+    """A band laid along a garment's edge loop. profile: (along, out) offsets in meters for
+    each row across the band; `along` runs over the surface into the garment (negative =
+    past the edge), `out` is the height above the surface."""
+    P, N, D, W = edge["P"], edge["N"], edge["D"], edge["W"]
+    n, R = len(P), len(profile)
+    verts, wts = [], []
+    for i in range(n):
+        for along, out in profile:
+            verts.append(Vector(tuple(P[i] + D[i] * along + N[i] * out)))
+            wts.append(W[i])
+    faces = []
+    for i in range(n if edge.get("closed", True) else n - 1):
+        i2 = (i + 1) % n
+        for r in range(R - 1):
+            faces.append((i * R + r, i2 * R + r, i2 * R + r + 1, i * R + r + 1))
+    # Wind the widest part of the band to face outward.
+    r = int(np.argmax([abs(profile[q + 1][0] - profile[q][0]) for q in range(R - 1)]))
+    a, b_, c = verts[r], verts[R + r], verts[R + r + 1]
+    if (b_ - a).cross(c - b_).dot(Vector(tuple(N[0]))) * (1 if profile[r + 1][0] >= profile[r][0] else -1) < 0:
+        faces = [tuple(reversed(f)) for f in faces]
+    uvs = [[(0, 0), (1, 0), (1, 1), (0, 1)] for _ in faces]
+    return make_mesh_object(name, verts, faces, uvs, wts, [mat], None, rig)
+
+
+def hide_body(bd, mask, rings=2):
+    covered = erode(bd, mask, rings)
+    obj = bd.obj
+    vg = obj.vertex_groups.get("vbd_hidden") or obj.vertex_groups.new(name="vbd_hidden")
+    ids = np.where(covered)[0].tolist()
+    if ids:
+        vg.add(ids, 1.0, "REPLACE")
+    if not any(m.type == "MASK" and m.vertex_group == "vbd_hidden" for m in obj.modifiers):
+        m = obj.modifiers.new("Hide covered skin", "MASK")
+        m.vertex_group = "vbd_hidden"
+        m.invert_vertex_group = True
+
+
+# Band shapes (along, out), in meters before scaling `along` by body size.
+RIB_NECK = [(-0.002, -0.002), (-0.0025, 0.001), (0.0, 0.0026), (0.010, 0.0022), (0.013, 0.0010)]
+RIB_NECK_THICK = [(-0.002, -0.003), (-0.003, 0.0012), (0.0, 0.0035), (0.018, 0.0030), (0.022, 0.0012)]
+COLLAR = [(0.0, -0.001), (-0.016, 0.0015), (-0.019, 0.005), (-0.012, 0.008), (0.002, 0.009),
+          (0.024, 0.0065), (0.030, 0.003)]
+HEM = [(-0.0015, -0.002), (-0.002, 0.0008), (0.0, 0.0018), (0.010, 0.0015)]
+RIB_WIDE = [(-0.002, -0.003), (-0.003, 0.001), (0.0, 0.0032), (0.038, 0.0028), (0.043, 0.001)]
+CUFF = [(-0.002, -0.003), (-0.003, 0.001), (0.0, 0.0034), (0.032, 0.0030), (0.037, 0.0012)]
+WAISTBAND = [(-0.002, -0.002), (-0.002, 0.001), (0.0, 0.0025), (0.035, 0.0022)]
+JOGGER_CUFF = [(-0.002, -0.003), (-0.003, 0.001), (0.0, 0.0035), (0.040, 0.0032), (0.046, 0.0012)]
+
+
+def scaled(profile, k):
+    return [(a * k, o) for a, o in profile]
+
+
+# =========================================================================== materials
+def material(name, color=None, image=None, rough=0.8):
+    m = bpy.data.materials.new(name)
+    try:
+        m.use_nodes = True
+    except Exception:
+        pass
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if image is not None:
+        tex = m.node_tree.nodes.new("ShaderNodeTexImage")
+        tex.image = image
+        m.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    if color is not None:
+        bsdf.inputs["Base Color"].default_value = (*lin(color), 1.0)
+        m.diffuse_color = (*lin(color), 1.0)
+    bsdf.inputs["Roughness"].default_value = rough
+    return m
+
+
+class UVFrame:
+    """Maps meters on the body surface around a point to texture pixels (handles the UV
+    island's rotation, mirroring and scale), for placing prints upright."""
+
+    def __init__(self, bd, center_vi, size):
+        self.S = size
+        c = bd.co[center_vi]
+        near = [i for i in np.argsort(np.linalg.norm(bd.co - c, axis=1))[:60] if bd.body[i]]
+        P = bd.co[near][:, [0, 2]] - c[[0, 2]]  # world x (character's left) and z (up)
+        U = bd.vert_uv[near] - bd.vert_uv[center_vi]
+        J, *_ = np.linalg.lstsq(P, U, rcond=None)  # rows: d(uv)/dx, d(uv)/dz
+        self.J = J
+        self.uv0 = bd.vert_uv[center_vi]
+
+    def px(self, x, z):
+        """Texture pixel for a point x meters to the character's left and z meters up."""
+        uv = self.uv0 + np.array([x, z]) @ self.J
+        return uv[0] * self.S, uv[1] * self.S
+
+    def scale(self):
+        return float(np.linalg.norm(self.J[0])) * self.S  # pixels per meter (horizontal)
+
+
+def paint_top(bd, look_top, model_id, S=1024):
+    """The texture for a top, in body-UV space: color, pattern, prints, buttons, trims."""
+    col = hexc(look_top["color"])
+    tp = look_top["type"]
+    cv = Canvas(S, S, col)
+    chest_z = bd.j("Spine2")[2] + 0.02 * bd.height
+    front = bd.body & (np.abs(bd.co[:, 0]) < 0.012) & (bd.co[:, 1] < bd.j("Spine2")[1])
+    cvi = bd.nearest_body(np.array([0, bd.co[front, 1].min() if front.any() else -0.1, chest_z]), front if front.any() else None)
+    fr = UVFrame(bd, cvi, S)
+    ppm = max(fr.scale(), 50.0)
+    if look_top.get("pattern") == "dots":
+        pc = hexc(look_top.get("pattern_color", "#ffffff"))
+        sx = 0.026 * ppm
+        yy, xx = np.mgrid[0:S, 0:S] + 0.5
+        row = np.floor(yy / sx)
+        xm = ((xx + (row % 2) * sx * 0.5) % sx) - sx / 2
+        ym = (yy % sx) - sx / 2
+        r = sx * 0.12
+        cov = np.clip(r - np.hypot(xm, ym) + 0.5, 0, 1)
+        for ang in (0, math.pi / 2, math.pi, 3 * math.pi / 2):
+            cov = np.maximum(cov, np.clip(r * 0.7 - np.hypot(xm - math.cos(ang) * r * 1.3, ym - math.sin(ang) * r * 1.3) + 0.5, 0, 1))
+        a = cov[..., None] * 0.9
+        cv.a = cv.a * (1 - a) + pc * a
+    if tp == "sweater":
+        yy, xx = np.mgrid[0:S, 0:S] + 0.5
+        sx = 0.012 * ppm
+        k = (xx % sx) / sx
+        val = 0.5 + 0.5 * np.cos(2 * math.pi * (yy / (sx * 0.8) + 2 * np.abs(k - 0.5)))
+        cv.a = cv.a * (1 - 0.10 * val[..., None])
+    if tp == "buttonup":
+        for z in np.linspace(-0.22, 0.10, 6):
+            x0, y0 = fr.px(0.0, z)
+            cv.ellipse(x0, y0, 0.0055 * ppm, 0.0055 * ppm, np.array([0.93, 0.93, 0.96]))
+        top_px, bot_px = fr.px(0, 0.14), fr.px(0, -0.30)
+        cv.line([top_px, bot_px], 0.018 * ppm, col * 0.80, alpha=0.8)
+        pk = [fr.px(x, z) for x, z in ((0.04, 0.03), (0.04, -0.05), (0.11, -0.05), (0.11, 0.03))]
+        cv.line(pk + [pk[0]], 0.004 * ppm, col * 0.70)
+    if tp == "jersey":
+        t0, t1 = [hexc(c) for c in look_top.get("trim", ["#ff0000", "#00ff00"])]
+        crest = fr.px(0.085, 0.06)
+        cv.ellipse(crest[0], crest[1], 0.022 * ppm, 0.026 * ppm, t0)
+        cv.ellipse(crest[0], crest[1], 0.009 * ppm, 0.024 * ppm, t1)
+    if look_top.get("number"):
+        cx, cy = fr.px(0.0, -0.04)
+        draw_digits(cv, look_top["number"], cx, cy, 0.12 * ppm, hexc(look_top.get("number_color", "#ffffff")))
+    if look_top.get("print") == "cyber":
+        pc = hexc(look_top.get("print_color", "#ffff00"))
+        cx, cy = fr.px(0.0, -0.05)
+        r = 0.07 * ppm
+        hexpts = [(cx + math.cos(a) * r, cy + math.sin(a) * r) for a in np.linspace(math.pi / 6, math.pi / 6 + 2 * math.pi, 7)]
+        cv.line(hexpts, 0.008 * ppm, pc)
+        for i, wdt in enumerate((0.10, 0.07, 0.035)):
+            cv.rect(cx - wdt * ppm / 2, cy - (0.016 + i * 0.02) * ppm, cx + wdt * ppm / 2, cy - (0.008 + i * 0.02) * ppm, pc)
+        cv.rect(cx - 0.025 * ppm, cy + 0.008 * ppm, cx + 0.025 * ppm, cy + 0.034 * ppm, pc)
+        cv.rect(cx - 0.015 * ppm, cy + 0.015 * ppm, cx + 0.015 * ppm, cy + 0.027 * ppm, col)
+    cv.noise(0.012, seed=5)
+    return cv.image("%s_top_%s" % (model_id, tp))
+
+
+def plain_texture(name, color, noise=0.02, S=256):
+    cv = Canvas(S, S, hexc(color))
+    cv.noise(noise, seed=9)
+    return cv.image(name)
+
+
+# =========================================================================== skin texture
+def eyes_of(bd):
+    """(left eye, right eye) centers from MakeHuman's eye joint markers."""
+    le, re = bd.joints.get("l-eye"), bd.joints.get("r-eye")
+    if le is None or re is None:
+        return None
+    if le[0] < re[0]:  # "l" is the character's left (+x)
+        le, re = re, le
+    return le, re
+
+
+def skin_material(bd):
+    counts = {}
+    for f, mi in zip(bd.faces, bd.face_mat):
+        if all(bd.body[v] for v in f):
+            counts[mi] = counts.get(mi, 0) + 1
+    if not counts:
+        return None
+    idx = max(counts, key=counts.get)
+    slots = bd.obj.material_slots
+    return slots[idx].material if idx < len(slots) else None
+
+
+def beard_alpha(bd, look):
+    """Per-vertex beard coverage (0..1) for a short boxed beard or stubble: mustache under
+    the nose, a cheek line rising to the sideburns at the ears, along the jaw underneath,
+    never on the lips or the neck. Landmarks come from MakeHuman's "lips" and "ears" vertex
+    groups and its chin ("jaw") joint. (MakeHuman's "mouth" joint is not at the mouth.)"""
+    face = look.get("face", {})
+    kind = face.get("beard", "none")
+    if kind not in ("short", "stubble"):
+        return None
+    eyes = eyes_of(bd)
+    lips = bd.groups.get("lips")
+    if eyes is None or not lips:
+        return None
+    k = bd.height / 1.8
+    Lp = bd.co[lips]
+    mz = float(np.median(Lp[:, 2]))
+    my = float(Lp[:, 1].min())
+    mw = float(np.abs(Lp[:, 0]).max())
+    ears = bd.groups.get("ears")
+    eye_z = 0.5 * (eyes[0][2] + eyes[1][2])
+    ear_y = float(bd.co[ears][:, 1].min()) if ears else 0.5 * (eyes[0][1] + eyes[1][1]) + 0.07 * k
+    chin = bd.joints.get("jaw")
+    chin_zr = (float(chin[2]) - mz) if chin is not None else -0.027 * k
+    ax = np.abs(bd.co[:, 0])
+    yr = bd.co[:, 1] - my
+    zr = bd.co[:, 2] - mz
+    # Upper edge: under the nose in the middle, rising across the cheeks to the sideburns.
+    z_top = k * (0.012 + 0.004 * sstep(0.024 * k, 0.016 * k, ax)) + np.maximum(0.0, ax - 0.032 * k) * 1.0
+    z_top = np.minimum(z_top, eye_z - mz - 0.035 * k)
+    a = sstep(z_top + 0.003 * k, z_top - 0.003 * k, zr)
+    # Back edge: the front of the ears.
+    yb = ear_y - my - 0.004 * k
+    a *= sstep(yb + 0.004 * k, yb - 0.006 * k, yr)
+    # Under the chin, then up along the jaw toward the ears; never down the neck.
+    y_back = max(yb, 0.06 * k)
+    t = np.clip((yr - 0.03 * k) / max(y_back - 0.03 * k, 1e-3), 0, 1)
+    z_low = (chin_zr - 0.03 * k) * (1 - t) + (-0.022 * k) * t
+    a *= sstep(z_low - 0.004 * k, z_low + 0.005 * k, zr)
+    # Not on the lips.
+    e = (ax / (mw + 0.003 * k)) ** 2 + (zr / (0.0095 * k)) ** 2
+    a *= np.where(yr < 0.02 * k, sstep(0.8, 1.3, e), 1.0)
+    a *= (bd.is_dom("Head", "Neck") & bd.body).astype(float)
+    return a * (0.95 if kind == "short" else 0.42)
+
+
+def raster_alpha(bd, valpha, W, H):
+    """Paints per-vertex values into texture space (body UVs), interpolated across faces."""
+    A = np.zeros((H, W), np.float32)
+    for fi, f in enumerate(bd.faces):
+        av = valpha[list(f)]
+        if av.max() < 0.005 or not all(bd.body[v] for v in f):
+            continue
+        uvs = np.array(bd.face_uv[fi]) * [W, H]
+        tris = ((0, 1, 2), (0, 2, 3)) if len(f) == 4 else ((0, 1, 2),)
+        for tri in tris:
+            P = uvs[list(tri)]
+            a3 = av[list(tri)]
+            x0, y0 = np.maximum(np.floor(P.min(0)).astype(int) - 1, 0)
+            x1, y1 = np.minimum(np.ceil(P.max(0)).astype(int) + 1, [W - 1, H - 1])
+            if x1 < x0 or y1 < y0:
+                continue
+            ys, xs = np.mgrid[y0:y1 + 1, x0:x1 + 1]
+            px, py = xs + 0.5, ys + 0.5
+            (ax_, ay_), (bx_, by_), (cx_, cy_) = P
+            den = (by_ - cy_) * (ax_ - cx_) + (cx_ - bx_) * (ay_ - cy_)
+            if abs(den) < 1e-9:
+                continue
+            l1 = ((by_ - cy_) * (px - cx_) + (cx_ - bx_) * (py - cy_)) / den
+            l2 = ((cy_ - ay_) * (px - cx_) + (ax_ - cx_) * (py - cy_)) / den
+            l3 = 1 - l1 - l2
+            tol = -1.5 / max(1.0, abs(den) ** 0.5)
+            inside = (l1 >= tol) & (l2 >= tol) & (l3 >= tol)
+            val = np.clip(l1 * a3[0] + l2 * a3[1] + l3 * a3[2], 0, 1)
+            yy, xx = ys[inside], xs[inside]
+            A[yy, xx] = np.maximum(A[yy, xx], val[inside])
+    return A
+
+
+def skin_texture(bd, look, model_id, tint=0.3):
+    """The hero's own copy of the skin texture: tinted toward look["skin"], with any beard
+    or stubble painted in."""
+    import hero_mpfb
+    mat = skin_material(bd)
+    node, img = hero_mpfb.base_color_image(mat)
+    if img is None:
+        return
+    W, H = img.size
+    if max(W, H) > 2048:
+        img.scale(2048, 2048)
+        W, H = img.size
+    px = np.empty(W * H * 4, np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(H, W, 4)
+    rgb = px[..., :3].copy()
+    if look.get("skin") and tint > 0:
+        tgt = hexc(look["skin"]).astype(np.float32)
+        lum = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
+        valid = px[..., 3] > 0.5
+        mean = float(lum[valid].mean()) if valid.any() else float(lum.mean())
+        rgb = rgb * (1 - tint) + tgt[None, None, :] * (lum / max(mean, 1e-3))[..., None] * tint
+    av = beard_alpha(bd, look)
+    if av is not None and av.max() > 0.01:
+        A = raster_alpha(bd, av, W, H)
+        ys, xs = np.nonzero(A > 0.002)
+        if len(ys):
+            y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+            sub = A[y0:y1, x0:x1]
+            rng = np.random.default_rng(11)
+            nz = rng.random(sub.shape).astype(np.float32)
+            nz = (nz + np.roll(nz, 1, 0) + np.roll(nz, -1, 0) + np.roll(nz, 2, 0)) / 4.0  # short strands
+            face = look.get("face", {})
+            col = hexc(face.get("beard_color", look["hair"]["color"])).astype(np.float32)
+            a = np.clip(sub * (0.8 + 0.4 * (nz - 0.5) * 2), 0, 1)[..., None]
+            shade = (0.75 + 0.5 * nz)[..., None]
+            rgb[y0:y1, x0:x1] = rgb[y0:y1, x0:x1] * (1 - a) + col * shade * a
+    px[..., :3] = np.clip(rgb, 0, 1)
+    new = bpy.data.images.new("%s_skin" % model_id, W, H, alpha=True)
+    new.pixels.foreach_set(px.ravel())
+    new.filepath_raw = os.path.join(TEXDIR, "%s_skin.png" % model_id)
+    new.file_format = "PNG"
+    new.save()
+    node.image = new
+
+
+def recolor_brows(rig, look, model_id):
+    import hero_mpfb
+    col = look.get("face", {}).get("brows")
+    if not col:
+        return
+    for o in rig.children_recursive:
+        if o.type == "MESH" and "eyebrow" in o.name.lower():
+            for slot in o.material_slots:
+                hero_mpfb.colorize(slot.material, col, keep=0.1, name="%s_brows" % model_id)
+
+
+# =========================================================================== accessories
+def tube(name, pts, radius, mat, rig, bone, closed=False, seg=8, sq=2.0):
+    verts, faces = [], []
+    n = len(pts)
+    for i, p in enumerate(pts):
+        a = pts[i - 1] if (closed or i > 0) else pts[i]
+        b_ = pts[(i + 1) % n] if (closed or i < n - 1) else pts[i]
+        t = (Vector(b_) - Vector(a)).normalized()
+        ref = Vector((0, 0, 1)) if abs(t.z) < 0.9 else Vector((1, 0, 0))
+        x = t.cross(ref).normalized()
+        y = t.cross(x).normalized()
+        rx, ry = radius if isinstance(radius, tuple) else (radius, radius)
+        for q in range(seg):
+            ang = 2 * math.pi * q / seg
+            c, s = math.cos(ang), math.sin(ang)
+            e = 2.0 / sq
+            verts.append(Vector(p) + x * math.copysign(abs(c) ** e, c) * rx + y * math.copysign(abs(s) ** e, s) * ry)
+    rng = range(n) if closed else range(n - 1)
+    for i in rng:
+        i2 = (i + 1) % n
+        for q in range(seg):
+            q2 = (q + 1) % seg
+            faces.append((i * seg + q, i2 * seg + q, i2 * seg + q2, i * seg + q2))
+    if not closed:
+        verts.append(Vector(pts[0]))
+        verts.append(Vector(pts[-1]))
+        c0, c1 = len(verts) - 2, len(verts) - 1
+        for q in range(seg):
+            q2 = (q + 1) % seg
+            faces.append((q2, q, c0))
+            faces.append(((n - 1) * seg + q, (n - 1) * seg + q2, c1))
+    wts = [{B + bone: 1.0}] * len(verts)
+    uvs = [[(0, 0)] * len(f) for f in faces]
+    return make_mesh_object(name, verts, faces, uvs, wts, [mat], None, rig)
+
+
+def add_accessories(bd, rig, look, model_id):
+    acc = look.get("acc", [])
+    Hm = bd.height
+    k = Hm / 1.8
+    eyes = eyes_of(bd)
+    if "cap" in acc:
+        eye_z = eyes[0][2] if eyes else bd.j("Head")[2] + 0.5 * (bd.j("Head", "t")[2] - bd.j("Head")[2])
+        brow_z = eye_z + 0.032 * k
+        mask = region_head_top(bd, brow_z - 0.05 * k)
+        upper = mask & (bd.co[:, 2] >= brow_z)
+        front = bd.co[upper][np.argmin(bd.co[upper][:, 1])]
+        # The cap's rim: just above the brows in front, a little lower at the back.
+        rim = dict(co=(0.0, front[1], brow_z), no=(0.0, -0.1, -1.0), where=dict(zmin=brow_z - 0.1 * k))
+        capm = material("%s_cap" % model_id, hexc("#16161a"), rough=0.75)
+        cap, cap_edges = garment(bd, mask, "%s.cap" % model_id, 0.022 * k, capm, rig, smooth=4, thickness=0.004,
+                                 cuts=[rim])
+        for e in cap_edges:
+            strip("%s.cap_band" % model_id, e, scaled([(-0.002, -0.002), (-0.002, 0.001), (0.0, 0.002), (0.012, 0.0015)], k),
+                  capm, rig)
+        y0, z0 = front[1] - 0.004, brow_z + 0.005
+        hw = 0.085 * k
+        pts, rad = [], []
+        for t in np.linspace(0, 1, 6):
+            pts.append(Vector((0, y0 - 0.075 * t * k, z0 - 0.012 * t * t)))
+            rad.append((hw * (1 - 0.45 * t ** 1.6), 0.004))
+        verts, faces = [], []
+        for i, (p, (rx, ry)) in enumerate(zip(pts, rad)):
+            for q in range(10):
+                a = 2 * math.pi * q / 10
+                verts.append(p + Vector((math.cos(a) * rx, 0, math.sin(a) * ry)))
+        for i in range(len(pts) - 1):
+            for q in range(10):
+                q2 = (q + 1) % 10
+                faces.append((i * 10 + q, i * 10 + q2, (i + 1) * 10 + q2, (i + 1) * 10 + q))
+        make_mesh_object("%s.cap_brim" % model_id, verts, faces, [[(0, 0)] * 4 for _ in faces],
+                         [{B + "Head": 1.0}] * len(verts), [capm], None, rig)
+    if eyes and ("glasses" in acc or "sunglasses" in acc):
+        le, re = (Vector(eyes[0]), Vector(eyes[1]))
+        sun = "sunglasses" in acc
+        fm = material("%s_frame" % model_id, hexc("#151515" if sun else look.get("glasses_color", "#8a72b4")),
+                      rough=0.35)
+        lens = material("%s_lens" % model_id, hexc("#101216"), rough=0.1)
+        w = (0.026 if sun else 0.028) * k
+        hgt = (0.019 if sun else 0.021) * k
+        fwd = -0.024 * k
+        rim_r = 0.0016 if sun else 0.0024
+        for c in (le, re):
+            cc = Vector(c) + Vector((0, fwd, 0.0))
+            ring = [cc + Vector((math.copysign(abs(math.cos(a)) ** 0.5, math.cos(a)) * w, 0,
+                                 math.copysign(abs(math.sin(a)) ** 0.5, math.sin(a)) * hgt))
+                    for a in np.linspace(0, 2 * math.pi, 20, endpoint=False)]
+            tube("%s.frame" % model_id, ring, rim_r, fm, rig, "Head", closed=True, seg=6)
+            if sun:
+                lv = [cc + Vector((math.copysign(abs(math.cos(a)) ** 0.5, math.cos(a)) * w * 0.98, 0.001,
+                                   math.copysign(abs(math.sin(a)) ** 0.5, math.sin(a)) * hgt * 0.98))
+                      for a in np.linspace(0, 2 * math.pi, 20, endpoint=False)]
+                ctr = len(lv)
+                verts = lv + [cc + Vector((0, 0.0015, 0))]
+                faces = [(i, (i + 1) % ctr, ctr) for i in range(ctr)]
+                make_mesh_object("%s.lens" % model_id, verts, faces, [[(0, 0)] * 3 for _ in faces],
+                                 [{B + "Head": 1.0}] * len(verts), [lens], None, rig)
+            sg = 1 if c[0] > 0 else -1
+            ear = Vector((c[0] + sg * 0.025 * k, c[1] + 0.09 * k, c[2] - 0.004))
+            tube("%s.temple" % model_id, [cc + Vector((sg * w, 0, 0.004)), ear], rim_r * 0.85, fm, rig, "Head")
+        tube("%s.bridge" % model_id, [re + Vector((w * 0.9, fwd, 0.005)), le + Vector((-w * 0.9, fwd, 0.005))],
+             rim_r, fm, rig, "Head")
+    if "watch" in acc:
+        wr = Vector(bd.j("LeftHand"))
+        el = Vector(bd.j("LeftForeArm"))
+        d = (wr - el).normalized()
+        c = wr - d * 0.035 * k
+        near = np.linalg.norm(bd.co - np.array(c), axis=1) < 0.04
+        r = float(np.median(np.linalg.norm(np.cross(bd.co[near] - np.array(c), np.array(d)), axis=1))) if near.any() else 0.028
+        ref = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((0, 1, 0))
+        x = d.cross(ref).normalized()
+        y = d.cross(x).normalized()
+        ring = [c + (x * math.cos(a) + y * math.sin(a)) * (r + 0.004) for a in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
+        wm = material("%s_watch" % model_id, hexc("#1c1c1e"), rough=0.4)
+        tube("%s.watch" % model_id, ring, (0.0025, 0.007), wm, rig, "LeftForeArm", closed=True, seg=6)
+        face_c = c + y * (r + 0.006)
+        tube("%s.watch_face" % model_id, [face_c - y * 0.002, face_c + y * 0.003], 0.010,
+             material("%s_watch_face" % model_id, hexc("#3a4a5a"), rough=0.2), rig, "LeftForeArm", seg=12)
+
+
+# =========================================================================== shoes
+def add_shoes(rig, basemesh, look, model_id):
+    mod = importlib.import_module("bl_ext.vbd.mpfb.services")
+    sh = look["shoes"]
+    asset = SHOES.get(sh["type"], "shoes05")
+    path = mod.AssetService.find_asset_absolute_path(asset + ".mhclo", "clothes")
+    if not path:
+        return
+    obj = mod.HumanService.add_mhclo_asset(path, basemesh, asset_type="Clothes", subdiv_levels=0, material_type="MAKESKIN")
+    if obj is None:
+        return
+    obj.parent = rig
+    import hero_mpfb
+    for slot in obj.material_slots:
+        hero_mpfb.colorize(slot.material, sh["color"], keep=0.0, name="%s_shoes" % model_id)
+
+
+# =========================================================================== outfit
+def dress(rig, basemesh, model_id, look=None):
+    """Dresses the hero in their hero_looks.py outfit (or `look`, for skins)."""
+    look = look or L.look(model_id)
+    add_shoes(rig, basemesh, look, model_id)
+    # Bake the body shape first, so garments follow the hero's actual figure.
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = basemesh
+    basemesh.select_set(True)
+    if basemesh.data.shape_keys:
+        bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
+    bpy.context.view_layer.update()
+    bd = Body(rig, basemesh)
+    Hm = bd.height
+    k = Hm / 1.8
+    skin_texture(bd, look, model_id)
+    recolor_brows(rig, look, model_id)
+    top, bottom = look["top"], look["bottom"]
+    tt, bt = top["type"], bottom["type"]
+    hips_z, spine_z = bd.j("Hips")[2], bd.j("Spine1")[2]
+    waist_z = hips_z + 0.45 * (spine_z - hips_z)
+    hem_z = hips_z + 0.02 * k
+    covered = np.zeros(len(bd.co), bool)
+    # ---------------------------------------------------------------- bottoms (under the top)
+    bmat = material("%s_bottom" % model_id, image=plain_texture("%s_bottom" % model_id, bottom["color"]), rough=0.85)
+    if bt == "skirt":
+        z_top = waist_z
+        z_hem = bd.j("LeftLeg")[2] - 0.06 * k
+        skirt_r0 = None
+        legs = bd.is_dom("Hips", "LeftUpLeg", "RightUpLeg") & bd.body & (bd.co[:, 2] <= z_top) & (bd.co[:, 2] >= z_hem)
+        pts = bd.co[legs]
+        cy = float(np.median(pts[:, 1]))
+        rings, n_r, seg = [], 8, 28
+        for i in range(n_r):
+            t = i / (n_r - 1)
+            z = z_top - (z_top - z_hem) * t
+            band_pts = bd.co[bd.body & (np.abs(bd.co[:, 2] - z) < 0.012) & (np.abs(bd.co[:, 0]) < 0.25 * k)]
+            r0 = float(np.percentile(np.hypot(band_pts[:, 0], band_pts[:, 1] - cy), 95)) if len(band_pts) else 0.15 * k
+            if skirt_r0 is None:
+                skirt_r0 = r0
+            r = max(r0 + 0.01 * k, skirt_r0) * (1 + 0.55 * t ** 1.3)
+            rings.append([(math.cos(a) * r, cy + math.sin(a) * r * 0.85, z) for a in np.linspace(0, 2 * math.pi, seg, endpoint=False)])
+        verts = [v for ring in rings for v in ring]
+        faces = []
+        for i in range(n_r - 1):
+            for j in range(seg):
+                j2 = (j + 1) % seg
+                faces.append((i * seg + j, i * seg + j2, (i + 1) * seg + j2, (i + 1) * seg + j))
+        tree = kdtree.KDTree(int(bd.body.sum()))
+        idx = np.where(bd.body)[0]
+        for n_i, vi in enumerate(idx):
+            tree.insert(bd.co[vi], n_i)
+        tree.balance()
+        wts = []
+        for v in verts:
+            _, n_i, _ = tree.find(v)
+            w = weights_of(bd, idx[n_i])
+            t = (z_top - v[2]) / max(1e-6, z_top - z_hem)
+            mixed = {kk: vv * t * 0.7 for kk, vv in w.items()}
+            mixed[B + "Hips"] = mixed.get(B + "Hips", 0.0) + (1 - t * 0.7)
+            s = sum(mixed.values())
+            wts.append({kk: vv / s for kk, vv in mixed.items()} if s else {B + "Hips": 1.0})
+        uvs = [[(0, 0), (1, 0), (1, 1), (0, 1)] for _ in faces]
+        sk = make_mesh_object("%s.skirt" % model_id, verts, faces, uvs, wts, [bmat], None, rig)
+        sol = sk.modifiers.new("Solidify", "SOLIDIFY")
+        sol.thickness = 0.004
+        sol.use_rim = True
+        bpy.context.view_layer.objects.active = sk
+        bpy.ops.object.modifier_move_to_index(modifier="Solidify", index=0)
+        bpy.ops.object.modifier_apply(modifier="Solidify")
+    else:
+        # The waistband stops just above the top's hem, so the top always covers it.
+        top_z = (hem_z + 0.03 * k) if tt != "tank" else waist_z
+        mask = region_bottom(bd, bt, top_z + 0.06 * k)
+        cuts = [dict(co=(0.0, 0.0, top_z), no=(0.0, 0.0, 1.0), where=dict(xmax=0.32 * k, zmin=top_z - 0.15 * k))]
+        for side in ("Left", "Right"):
+            if bt == "shorts":
+                bone, t = side + "UpLeg", 0.62
+            else:
+                bone, t = side + "Leg", {"pants": 0.93, "joggers": 0.90, "leggings": 0.95}.get(bt, 0.93)
+            h, tl = bd.j(bone), bd.j(bone, "t")
+            cuts.append(dict(co=h + t * (tl - h), no=tl - h,
+                             where=dict(bones=[side + "UpLeg", side + "Leg", side + "Foot"])))
+        off = {"joggers": 0.013, "pants": 0.009, "shorts": 0.012, "leggings": 0.003}.get(bt, 0.009) * k
+        fill = {"joggers": 0.85, "pants": 0.65, "shorts": 0.75, "leggings": 0.1}.get(bt, 0.6)
+
+        def loose(p):
+            if bt in ("joggers", "shorts"):
+                return 0.006 * k * float(np.clip((hips_z - p[2]) / (0.3 * Hm), 0, 1))
+            return 0.0
+
+        obj, edges = garment(bd, mask, "%s.%s" % (model_id, bt), off, bmat, rig, loose=loose, fill=fill, smooth=5,
+                             cuts=cuts)
+        keep = np.ones(len(bd.co), bool)
+        for c in cuts:
+            keep &= cut_keep(bd, c)
+        covered |= mask & keep
+        cuff = material("%s_bottom_hem" % model_id, hexc(bottom["color"]) * 0.88, rough=0.85)
+        for e in edges:
+            if e["P"][:, 2].mean() < hips_z - 0.1 * k:  # leg openings
+                if bt == "leggings":
+                    continue
+                prof = JOGGER_CUFF if bt == "joggers" else HEM
+            else:
+                prof = WAISTBAND
+            strip("%s.%s_band" % (model_id, bt), e, scaled(prof, k), cuff, rig)
+    # ---------------------------------------------------------------- top
+    sleeves = top.get("sleeves", "short")
+    if tt == "dress":
+        sleeves = "cap"
+    top_hem = hem_z if tt != "dress" else waist_z - 0.02 * k
+    nh = bd.j("Neck")
+    z_side = nh[2] + 0.012 * Hm
+    # Neckline shapes: (front dip, back rise, V depth), all times k.
+    shape = {"tank": (0.085, -0.03, 0.0), "dress": (0.04, 0.0, 0.0), "jersey": (0.03, 0.01, 0.05),
+             "buttonup": (0.025, 0.012, 0.0)}.get(tt, (0.03, 0.01, 0.0))
+    neck_f = neckline(nh[1], z_side, shape[0] * k, shape[1] * k, v_depth=shape[2] * k)
+    tmask = region_top(bd, sleeves, top_hem - 0.05 * k, z_side + 0.05 * k)
+    cuts = [dict(field=neck_f, where=dict(xmax=0.14 * k, zmin=z_side - 0.2 * k, not_bones=ARMS))]
+
+    def neck_snug(P):  # the neckline hugs the neck instead of standing off it
+        r = np.hypot(P[:, 0], P[:, 1] - nh[1])
+        return sstep(-0.07 * k, -0.02 * k, neck_f(P)) * sstep(0.15 * k, 0.10 * k, r)
+    for side in ("Left", "Right"):
+        if sleeves == "none":
+            continue
+        bone, t = {"short": (side + "Arm", 0.55), "cap": (side + "Arm", 0.22),
+                   "long": (side + "ForeArm", 0.92)}[sleeves]
+        h, tl = bd.j(bone), bd.j(bone, "t")
+        cuts.append(dict(co=h + t * (tl - h), no=tl - h,
+                         where=dict(bones=[side + "Arm", side + "ForeArm", side + "Hand"], share=0.45)))
+    cuts.append(dict(co=(0.0, 0.0, top_hem), no=(0.0, 0.0, -1.0),
+                     where=dict(xmax=0.32 * k, zmax=top_hem + 0.12 * k, not_bones=ARMS)))
+    if tt == "tank":
+        for side, sg in (("Left", 1), ("Right", -1)):
+            sh = bd.j(side + "Arm")
+
+            def armhole(P, sh=sh, sg=sg):  # an oval around the arm's root, plus the arm itself
+                c = sh + np.array([sg * 0.01 * k, 0.0, -0.05 * k])
+                r = np.array([0.07, 0.085, 0.11]) * k
+                inside = (1 - (((P - c) / r) ** 2).sum(1)) * 0.035 * k
+                beyond = sg * (P[:, 0] - sh[0]) - 0.02 * k
+                return np.maximum(inside, beyond)
+            cuts.append(dict(field=armhole, where=dict(xsign=sg, zmin=sh[2] - 0.3 * k)))
+    timg = paint_top(bd, top, model_id)
+    tmat = material("%s_top" % model_id, image=timg, rough=0.85)
+    toff = {"sweatshirt": 0.020, "sweater": 0.022, "buttonup": 0.018, "jersey": 0.017, "tee": 0.016,
+            "tank": 0.014, "dress": 0.010}.get(tt, 0.016) * k
+    tfill = {"sweatshirt": 0.9, "sweater": 0.9, "buttonup": 0.75, "jersey": 0.7, "tee": 0.65,
+             "tank": 0.55, "dress": 0.45}.get(tt, 0.65)
+    tobj, tedges = garment(bd, tmask, "%s.%s" % (model_id, tt), toff, tmat, rig, fill=tfill, smooth=5, cuts=cuts,
+                           snug=(neck_snug, 0.004 * k))
+    keep = np.ones(len(bd.co), bool)
+    for c in cuts:
+        keep &= cut_keep(bd, c)
+    covered |= tmask & keep
+    rib = material("%s_rib" % model_id, hexc(top["color"]) * 0.9, rough=0.9)
+    hem_m = material("%s_hem" % model_id, hexc(top["color"]) * 0.94, rough=0.85)
+    trims = top.get("trim")
+    trim_m = [material("%s_trim%d" % (model_id, i), hexc(c), rough=0.7) for i, c in enumerate(trims)] if trims else []
+    thick = tt in ("sweatshirt", "sweater")
+    for e in tedges:
+        P = e["P"]
+        zc, xc = P[:, 2].mean(), np.abs(P[:, 0]).mean()
+        is_neck = zc > bd.j("Spine2")[2] and xc < 0.07 * k
+        is_hem = zc < bd.j("Spine")[2] and P[:, 0].min() < 0 < P[:, 0].max()
+        if is_neck:
+            if tt == "buttonup":
+                strip("%s.collar" % model_id, e, scaled(COLLAR, k), material("%s_collar" % model_id, hexc(top["color"]) * 0.97,
+                                                                           rough=0.85), rig)
+            elif trim_m:
+                strip("%s.collar" % model_id, e, scaled(RIB_NECK, k), trim_m[0], rig)
+                if len(trim_m) > 1 and trims[1] != trims[0]:
+                    strip("%s.collar_stripe" % model_id, e, scaled([(0.004, 0.0029), (0.008, 0.0029)], k), trim_m[1], rig)
+            else:
+                strip("%s.collar" % model_id, e, scaled(RIB_NECK_THICK if thick else RIB_NECK, k), rib, rig)
+        elif is_hem:
+            strip("%s.hem" % model_id, e, scaled(RIB_WIDE if thick else HEM, k), rib if thick else hem_m, rig)
+        else:  # sleeves and armholes
+            if thick and sleeves == "long":
+                strip("%s.cuff" % model_id, e, scaled(CUFF, k), rib, rig)
+            else:
+                strip("%s.sleeve_hem" % model_id, e, scaled(HEM, k), trim_m[0] if trim_m else hem_m, rig)
+    hide_body(bd, covered, rings=2)
+    add_accessories(bd, rig, look, model_id)

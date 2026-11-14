@@ -21,6 +21,7 @@ switch ($Step) {
     "prompts" { Need-Python; & $py (Join-Path $here "hero_specs.py") @args2; exit $LASTEXITCODE }
     "motions" { Need-Python; & $py (Join-Path $here "kimodo_batch.py") @args2; exit $LASTEXITCODE }
     "meshy" { Need-Python; & $py (Join-Path $here "meshy.py") @args2; exit $LASTEXITCODE }
+    "trellis" { Need-Python; & $py (Join-Path $here "trellis.py") @args2; exit $LASTEXITCODE }
     "assemble" {
         $script = Join-Path $here "hero_assemble.py"
         $log = Join-Path $env:TEMP "vbd_heroes.log"

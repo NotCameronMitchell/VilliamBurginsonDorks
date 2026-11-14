@@ -1,0 +1,8 @@
+{
+  "hero": "sarah",
+  "anim": "ultimate",
+  "model": "keyframed",
+  "frames": 108,
+  "fps": 30,
+  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+}

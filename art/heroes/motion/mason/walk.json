@@ -1,0 +1,8 @@
+{
+  "hero": "mason",
+  "anim": "walk",
+  "model": "keyframed",
+  "frames": 60,
+  "fps": 30,
+  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+}

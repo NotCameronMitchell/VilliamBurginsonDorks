@@ -10,6 +10,8 @@ Options (after --):
     --no-export         don't write .glb files
     --no-blend          don't save the .blend lineups
     --render DIR        render preview PNGs of each character's poses into DIR
+    --chibi-heroes      also export the 6 base heroes and 2 forms as chibis (normally
+                        skipped: their game models come from hero_assemble.py now)
     --log FILE          write progress here (Blender's console isn't always visible)
 
 Writes:
@@ -185,17 +187,30 @@ def build_arenas(only, do_export):
     return count
 
 
+def detailed_ids():
+    """Heroes and forms that now come from the detailed pipeline (hero_assemble.py)."""
+    try:
+        import hero_specs
+        return set(hero_specs.all_ids())
+    except Exception:
+        return {"mason", "james", "cole", "cam", "sam", "sarah", "cole_uw", "james_buff"}
+
+
 def build_characters(only, render_dir, do_export):
     clear_scene()
     lineup_x = {"heroes": 0.0, "bosses": 0.0, "minions": 0.0}
     lineup_y = {"heroes": 0.0, "bosses": 3.0, "minions": 6.0}
     count = 0
+    detailed = detailed_ids()
     for folder, mid, spec, in_lineup in characters.all_models():
         if only and mid not in only:
             continue
+        # Don't overwrite a detailed hero with its chibi stand-in (unless asked by name with
+        # --chibi-heroes); the chibi still goes in the lineup .blend.
+        overwrite = mid not in detailed or bool(arg("--chibi-heroes"))
         try:
             arm = chibi.build(mid, spec)
-            if do_export:
+            if do_export and overwrite:
                 export(arm, os.path.join(ROOT, "assets", "models", folder, mid + ".glb"))
             if render_dir:
                 render_previews(arm, mid, render_dir)

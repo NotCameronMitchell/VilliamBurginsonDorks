@@ -1,56 +1,76 @@
 # Art pipeline: Blender → Godot
 
-## Detailed heroes (in progress)
+## Detailed heroes
 
-The six heroes and their two ultimate forms are being remade as detailed, Pokemon Scarlet/
-Violet-style models of the real people, with motion-captured movement. Every tool is free:
+The six heroes and their two ultimate forms are realistic, Pokemon Scarlet/Violet-style
+people, built in Blender with free tools. Bosses and minions are still the chibi models below.
 
-| Step | Tool | Where it runs | Output |
-|---|---|---|---|
-| 1. Concept art | Google Gemini (photo + prompt) | gemini.google.com | `art/heroes/<id>/concept_front.png` (+ `_back`, `_left`) |
-| 2. 3D model | Tencent Hunyuan 3D (20 free a day) | 3d.hunyuanglobal.com | `art/heroes/<id>/model.glb` |
-| 3. Motions | NVIDIA Kimodo (text to motion) | this PC's GPU | `art/heroes/motion/<hero>/<anim>.npz` |
-| 4. Rig, animate, export | `hero_assemble.py` (Blender) | this PC | `assets/models/heroes/<id>.glb` |
+| Step | Tool | Output |
+|---|---|---|
+| Body, face, hair, rig | MakeHuman, through MPFB 2 (a Blender add-on; CC0 assets) | built fresh each time |
+| Clothes | `garments.py`, generated from each hero's own body | built fresh each time |
+| Motions | NVIDIA Kimodo (text to motion), or keyframed stand-ins | `art/heroes/motion/<hero>/<anim>.npz` |
+| Retarget and export | `hero_assemble.py` | `assets/models/heroes/<id>.glb` |
 
-The look and motion prompts live in `art/tools/hero_specs.py`.
-
-**Photos:** the reference photos stay out of the repo, in `Pictures/Villiam Burginson Dorks/<id>.jpg`
-(or `$env:VBD_PHOTOS`).
+Each part lives in its own file:
+- **Identity:** `art/tools/hero_mh.py` holds who each hero is: MakeHuman body and face sliders,
+  skin, eye color, brows, lashes, hair and hair color. These were tuned by eye against each
+  person's photo. The photos stay out of the repo, in `Pictures/Villiam Burginson Dorks/`.
+- **Outfit:** `art/tools/hero_looks.py` holds what they wear: top, bottom, shoes, colors,
+  prints, numbers, beard and accessories. A new skin is a new look entry.
+- **Specs:** `art/tools/hero_specs.py` holds real heights, the Kimodo motion prompts and
+  `GAME_SCALE` (0.95).
 
 ```
-powershell -File art/tools/heroes.ps1 prompts               # each hero's Gemini prompts
-powershell -File art/tools/heroes.ps1 motions [--only cole] # generate Kimodo motions
-powershell -File art/tools/heroes.ps1 assemble [--only cole] [--render C:\temp\previews]
+powershell -File art/tools/heroes.ps1 assemble --makehuman [--only cole] [--render C:\temp\previews]
+powershell -File art/tools/heroes.ps1 assemble --makehuman --looks-only --render C:\temp\looks
+powershell -File art/tools/heroes.ps1 motions [--only cole]
 ```
+- `--looks-only` builds the models and renders a front view plus a face close-up of each, in
+  about 4 seconds a hero. It runs no motions and writes no export.
+- `--render` with a full build also saves a contact sheet, with a row per animation.
+- `motions` runs Kimodo and needs the Llama 3 access described below.
 
-**1. Concept art.** In Gemini, attach the hero's photo and paste their prompt from
-`heroes.ps1 prompts`. In the same chat, ask for the back and left views with the follow-up
-prompts. Save the images as `concept_front.png`, `concept_back.png`, `concept_left.png`.
+**One-time setup:** run `art/tools/makehuman_setup.py` in Blender
+(`blender -b -P art/tools/makehuman_setup.py -- --log C:\temp\mh.log`). It installs MPFB into a
+short-path extension repository, `~/.vbd/blender_ext`, because the Microsoft Store Blender's
+AppData paths are longer than Windows' 260-character limit. It also unpacks MakeHuman's
+system assets.
 
-**2. Model.** In Hunyuan 3D, choose Image to 3D, add the views (front first), generate, and
-download the GLB as `art/heroes/<id>/model.glb`. The pose must be the A-pose from the concept
-art; the auto-rigger depends on it.
+**How the clothes are made** (`garments.py`):
+1. **Region:** a garment starts as a region of the body surface, picked by which bone each
+   vertex follows.
+2. **Shape:** the region is copied, smoothed, pushed outward and filled across hollows like
+   fabric.
+3. **Edges:** necklines, sleeves, hems and leg openings are cut cleanly, with planes or with a
+   curved neckline that follows the neck. That neckline makes crew necks, V-necks and tank
+   scoops. Necklines hug the neck.
+4. **Bands:** collars, cuffs, hems and waistbands are bands laid along the cut edges.
+5. **Rig and print:** the garment keeps the body's skin weights, so it moves with the rig. It
+   also keeps the body's UVs, so prints and numbers land in the same spot on every hero.
+6. **Hidden skin:** skin that a garment covers is removed, so nothing pokes through.
+7. **Face and skin:** beards and stubble are painted into the hero's own copy of the skin
+   texture, which is also tinted toward the look's skin color.
+8. **Shoes and extras:** shoes are MakeHuman's, recolored. Caps, glasses, sunglasses and
+   watches are built in code.
 
-**3. Motions.** Kimodo runs locally (see "Kimodo setup" below). Each hero has a prompt per
-animation in `hero_specs.py` (`HERO_MOTIONS`, plus `SHARED_MOTIONS` for walk, hit, stunned and
-faint). The forms reuse their hero's motions. Change a prompt or its `seed`, then rerun
-`motions`: only changed motions are regenerated.
+**Motions:** Kimodo needs Meta's Llama 3 8B, which is gated. Until access is granted,
+`art/tools/motion_keys.py` writes keyframed stand-in motions in the same format, each with a
+little style per hero. Their sidecar files say `"model": "keyframed"`, so the next `motions`
+run replaces them with Kimodo motions. The forms reuse their hero's motions.
 
-**4. Assemble.** For each hero, `hero_assemble.py`:
-1. Takes the model.
-2. **Auto-rigs it:** finds the joints by slicing the mesh, builds a Mixamo-named skeleton, and
-   skins it with Blender's automatic weights on a solid voxel copy.
-3. **Retargets every Kimodo motion onto it:** loops the looping ones and cuts the walk to one
-   clean step cycle.
-4. **Exports the game model.** It's scaled by `GAME_SCALE` (0.8), so the cast stands about as
-   tall as the old chibi models.
+**Retargeting:** Kimodo poses its SOMA skeleton with world rotations relative to a T-pose.
+For each motion:
+- Each rig bone is turned to point the way its SOMA bone points, then gets that bone's
+  rotation each frame.
+- The hips get the root motion, scaled by leg length.
+- Looping clips are crossfaded, and the walk is cut to one clean step cycle.
 
-If a hero already has a rig (`rigged.glb` or `rigged.fbx`, for example from Mixamo), that rig
-is used instead. Two checks need no model:
-- `--mannequin` puts the motions on a jointed stand-in.
-- `--test-body` runs the auto-rigger on a smooth test figure.
-
-With `--render DIR`, it saves a contact sheet: a row per animation.
+**Export:** textures are scaled down and saved as WebP. Godot 4.7's glTF importer failed on
+JPEG textures, so WebP is used instead.
+- Sizes: 1024 for skin and tops, 512 for hair and shoes, 256 for eyes, brows and lashes.
+- Normal maps are dropped, and only hair, brows, lashes and eyes keep transparency.
+- A hero is about 2–3 MB.
 
 **Kimodo setup** (once per PC):
 1. Clone https://github.com/nv-tlabs/kimodo to `%LOCALAPPDATA%\VilliamBurginsonDorks\kimodo`, or
@@ -60,24 +80,28 @@ With `--render DIR`, it saves a contact sheet: a row per animation.
    cards).
 4. Install Kimodo with `SKIP_MOTION_CORRECTION_IN_SETUP=1 pip install -e .`. This skips
    Kimodo's optional C++ foot-skate cleanup, which needs a compiler.
-5. **Text encoder:** Kimodo reads prompts with Meta's Llama 3 8B, a gated model. Accept its
-   license at huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct, then run
-   `.venv\Scripts\hf.exe auth login`. On an 8 GB GPU the encoder runs on the CPU (needs about
-   16 GB of RAM).
+5. **Text encoder:** accept Meta's license at huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct,
+   then sign in to Hugging Face on this PC. On an 8 GB GPU the encoder runs on the CPU, which
+   needs about 16 GB of RAM.
 
-**Paid alternative:** `art/tools/meshy.py` does steps 1, 2 and the rig through Meshy's API
-(about 45 credits a hero). Set `MESHY_API_KEY`, then use `heroes.ps1 meshy plan`.
+**Earlier routes (kept, not used):**
+- `hero_builder.py` builds procedural bodies (`--procedural`).
+- `trellis.py` and `meshy.py` are AI image-to-3D clients. `meshy.py` is the paid one.
+- The auto-rigger (`assemble` without `--makehuman`) rigs any `art/heroes/<id>/model.glb`.
 
-**Licenses and credits:** Kimodo is Apache-2.0; its SOMA weights are under the NVIDIA Open
-Model License (commercial use allowed). The Llama 3 text encoder is under Meta's Llama 3
-license. Hunyuan 3D and Gemini outputs fall under those services' terms. That's fine for a free
-game; check them before selling it.
+**Licenses:**
+- MakeHuman's system assets are CC0.
+- MPFB is GPL. It's a tool only and isn't shipped with the game.
+- Kimodo is Apache-2.0. Its SOMA weights are under the NVIDIA Open Model License, which allows
+  commercial use.
+- The Llama 3 text encoder is under Meta's Llama 3 license.
 
 ## Generated models (what's in the game now)
 
 Every character (85 models) is built by a Python script running in Blender:
 
-- **Heroes:** the 6 heroes, their 2 ultimate forms and every skin.
+- **Hero skins.** The 6 base heroes and 2 forms are the detailed models above, so a full
+  rebuild skips them unless you pass `--chibi-heroes`.
 - **Bosses and remixes.**
 - **Minions.**
 

@@ -12,9 +12,10 @@ docs/ART_PIPELINE.md ("Detailed heroes") has the steps. Plain data only: kimodo_
 
 # Every concept image gets this style, so the whole cast matches.
 STYLE = (
-    "Style: a 3D character model like the trainer characters in Pokemon Scarlet and Violet, with "
-    "stylized anime proportions (about six heads tall), smooth clean shapes, a soft cel-shaded look, "
-    "bright saturated colors and a friendly, expressive face. "
+    "Style: a 3D-rendered game character model, like the trainer characters in Pokemon Scarlet and "
+    "Violet, with stylized anime proportions (about six heads tall), smooth clean shapes, soft 3D "
+    "shading with no black outlines (not a flat 2D drawing), bright saturated colors and a "
+    "friendly, expressive face. "
     "Pose: standing in a neutral A-pose, arms straight and angled about 45 degrees away from the "
     "body, hands open and empty, feet shoulder-width apart, facing the camera. "
     "Show the whole body from head to toe, centered, on a plain light gray background with even "
@@ -24,7 +25,7 @@ STYLE = (
 # With a photo, the concept keeps the person recognizable.
 PHOTO_PROMPT = (
     "Turn the person in the attached photo into a full-body 3D video game character. Keep their "
-    "face, hairstyle, hair color, facial hair, glasses and skin tone recognizable. "
+    "face, hairstyle, hair color, facial hair and skin tone recognizable. "
 )
 
 # Follow-up prompts in the same Gemini chat: extra views help Hunyuan 3D build the back.
@@ -35,9 +36,10 @@ EXTRA_VIEWS = {
             "same A-pose, on the same plain light gray background. Same outfit, same proportions.",
 }
 
-# Heights are real life, in meters. The game shows every hero at GAME_SCALE, so the cast
-# stands about as tall as the old chibi models did, and Sam is still the shortest.
-GAME_SCALE = 0.8
+# Heights are real life, in meters. The game shows every hero at GAME_SCALE: realistic
+# proportions (small heads) read smaller than the chibi models did at the same height, so
+# the cast stands a little taller than them; Sam is still the shortest.
+GAME_SCALE = 0.95
 
 # person: face, hair and build, used only when there's no photo.
 # extra:  notes the concept should follow even with a photo.
