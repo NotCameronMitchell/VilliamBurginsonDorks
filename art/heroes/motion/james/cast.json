@@ -1,8 +1,11 @@
 {
   "hero": "james",
   "anim": "cast",
-  "model": "keyframed",
-  "frames": 63,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person clenches their fists, flexes both arms and roars with rage.",
+  "seconds": 2.0,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 60,
+  "joints": 77,
+  "fps": 30
 }

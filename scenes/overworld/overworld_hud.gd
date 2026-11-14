@@ -140,6 +140,8 @@ func _build() -> void:
 	mv.add_theme_constant_override("separation", 10)
 	_menu.add_child(mv)
 	mv.add_child(UITheme.label("Paused", 28))
+	for row in SettingsRows.sound_rows():
+		mv.add_child(row)
 	var quit := Button.new()
 	quit.text = "Save and quit to title"
 	quit.custom_minimum_size = Vector2(320, 56)
@@ -219,6 +221,7 @@ func say(speaker: String, text: String) -> void:
 	_speaker.visible = speaker != ""
 	_text.text = text
 	_text.visible_ratio = 0.0
+	Audio.sfx("blip", -4.0)
 	if _text_tween:
 		_text_tween.kill()
 	var speed: float = Game.settings.get("text_speed", 1.0)

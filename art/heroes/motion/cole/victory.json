@@ -1,8 +1,11 @@
 {
   "hero": "cole",
   "anim": "victory",
-  "model": "keyframed",
+  "prompt": "A person pumps their fist and does a little celebratory dance.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

@@ -1,8 +1,11 @@
 {
   "hero": "cole",
   "anim": "idle",
-  "model": "keyframed",
+  "prompt": "A person stands confidently with their weight on one leg, swinging their arms a little and looking around.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

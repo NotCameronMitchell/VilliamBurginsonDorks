@@ -1,8 +1,11 @@
 {
   "hero": "cole",
   "anim": "hit",
-  "model": "keyframed",
-  "frames": 39,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person gets hit hard in the chest, flinches and staggers one step backward, then regains their balance.",
+  "seconds": 1.6,
+  "seed": 12,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
 }

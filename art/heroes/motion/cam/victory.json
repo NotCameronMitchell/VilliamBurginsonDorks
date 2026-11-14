@@ -1,8 +1,11 @@
 {
   "hero": "cam",
   "anim": "victory",
-  "model": "keyframed",
+  "prompt": "A person gives two thumbs up, then crosses their arms and nods coolly.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

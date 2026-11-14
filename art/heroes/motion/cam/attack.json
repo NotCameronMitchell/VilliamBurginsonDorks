@@ -1,8 +1,11 @@
 {
   "hero": "cam",
   "anim": "attack",
-  "model": "keyframed",
+  "prompt": "A person thrusts both hands forward as if throwing a magic blast at someone.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 48,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

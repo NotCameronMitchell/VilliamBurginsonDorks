@@ -1,8 +1,11 @@
 {
   "hero": "james",
   "anim": "idle",
-  "model": "keyframed",
+  "prompt": "A person stands in a boxer's stance with fists raised, bouncing slightly and rolling their shoulders.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

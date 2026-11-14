@@ -1,8 +1,11 @@
 {
   "hero": "sam",
   "anim": "walk",
-  "model": "keyframed",
-  "frames": 91,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person walks forward at a relaxed, steady pace.",
+  "seconds": 6.0,
+  "seed": 11,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 180,
+  "joints": 77,
+  "fps": 30
 }

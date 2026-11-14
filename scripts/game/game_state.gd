@@ -13,6 +13,7 @@ extends Node
 ##   --menu=<suitup|shop|achievements|hall>  open that screen on the title
 ##   --shots=<dir> --shot-every=<s> --shot-count=<n>
 ##                                   save screenshots, then quit (for checking the UI)
+##   --mute                          no music or sounds (for playtests)
 ## Pass them after "--", e.g.  godot --path . -- --fight=copilot --auto
 
 const TITLE := "res://scenes/title/title.tscn"
@@ -22,6 +23,8 @@ const DEFAULT_SETTINGS := {
 	"popup_timer": 1.0, ## Copilot pop-up countdown multiplier; 0 = no timer
 	"battle_speed": 1.0, ## 1 or 2
 	"text_speed": 1.0,
+	"music_volume": 0.8, ## 0 to 1
+	"sfx_volume": 1.0, ## 0 to 1
 }
 
 var meta: Dictionary

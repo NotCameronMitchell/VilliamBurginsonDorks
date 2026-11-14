@@ -43,6 +43,7 @@ func _ready() -> void:
 		return
 	auto = Game.auto_play
 	info = Run.current_stage(run)
+	Audio.play_music("office")
 	map = OfficeMap.new()
 	add_child(map)
 	map.build()
@@ -506,6 +507,7 @@ func _guard_challenge(n: Dictionary, walk := true) -> void:
 
 
 func _use_elevator() -> bool:
+	Audio.sfx("ding")
 	if info.kind == "bonus":
 		await hud.say("", Story.OVERWORLD.elevator_go)
 		run.overworld = {} # the next cycle starts at the elevator
@@ -635,6 +637,7 @@ static func _face(v: Node3D, dir: Vector3) -> void:
 
 
 func _exclaim(v: UnitView) -> void:
+	Audio.sfx("alert")
 	var l := Label3D.new()
 	l.text = "!"
 	l.font_size = 140

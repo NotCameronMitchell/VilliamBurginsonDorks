@@ -1,8 +1,11 @@
 {
   "hero": "sam",
   "anim": "victory",
-  "model": "keyframed",
+  "prompt": "A person flips their hair over their shoulder, then puts their hands on their hips proudly.",
+  "seconds": 4.0,
+  "seed": 107,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

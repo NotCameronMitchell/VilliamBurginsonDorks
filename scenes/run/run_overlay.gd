@@ -155,6 +155,7 @@ func choose(title: String, cards: Array) -> int:
 		row.add_child(b)
 	_auto(0)
 	var picked: int = await _done
+	Audio.sfx("pick")
 	_close()
 	return picked
 
@@ -184,6 +185,7 @@ func shop(run: Dictionary, meta: Dictionary, items: Array) -> void:
 		buy.custom_minimum_size = Vector2(130, 48)
 		buy.pressed.connect(func():
 			if Run.buy_item(run, meta, item):
+				Audio.sfx("coin")
 				Game.save()
 				_refresh_shop(run, rows, pto))
 		h.add_child(buy)

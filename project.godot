@@ -13,6 +13,7 @@ config/features=PackedStringArray("4.7", "Mobile")
 [autoload]
 
 Game="*res://scripts/game/game_state.gd"
+Audio="*res://scripts/game/audio.gd"
 
 [display]
 

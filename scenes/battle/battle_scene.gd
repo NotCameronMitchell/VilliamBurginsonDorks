@@ -74,6 +74,7 @@ func _ready() -> void:
 		b = Run.build_battle(Game.run, Game.meta)
 		Game.save()
 	_build_world(arena_id)
+	Audio.play_music(_battle_track(arena_id))
 	if Game.ult_first:  # test option: every hero's ultimate is ready on the first turn
 		for u in b.units:
 			if u.side == "hero" and HeroData.HEROES.has(u.key):
@@ -86,7 +87,27 @@ func _ready() -> void:
 	await _story(lines)
 	if info.get("kind", "") == "boss" or info.get("kind", "") == "bonus":
 		hud.banner(b.enemies()[0].name if info.kind == "boss" else "VILLIAM BURGINSON'S", "Boss fight!" if info.kind == "boss" else "Protect the sauce?")
+		Audio.sfx("banner")
 	state = State.PLAYING
+
+
+## Boss fights and the burger joint get their own music.
+func _battle_track(arena_id: String) -> String:
+	if arena_id == "villiam_burginson" or info.get("kind", "") == "bonus":
+		return "final"
+	return "boss" if info.get("kind", "") == "boss" else "battle"
+
+
+## The sound for a status note ("Stunned", "Poison", "Damage Up"...), or "" for none.
+func _status_sound(text: String) -> String:
+	for kind in StatusInfo.INFO:
+		var inf: Dictionary = StatusInfo.INFO[kind]
+		if inf.label == text:
+			match kind:
+				"stun", "poison", "burn":
+					return kind
+			return "buff" if inf.good else "debuff"
+	return ""
 
 
 func _build_world(arena_id: String) -> void:
@@ -335,22 +356,27 @@ func _play(ev: Dictionary) -> float:
 			var c := Color(ev.get("color", "")) if ev.get("color", "") != "" and not str(ev.color).begins_with("rgb") else v.color
 			match ev.style:
 				"melee":
+					Audio.sfx("swing")
 					v.lunge(to.base_pos if to else (Arena.ENEMY_CENTER if v.side == "hero" else Arena.HERO_CENTER))
 					return 0.17
 				"ranged":
+					Audio.sfx("throw")
 					_projectile(v.center_pos(), to.center_pos() if to else _side_center(v.side, true), c)
 					return 0.22
 				"pet":
+					Audio.sfx("throw")
 					var dest := to.center_pos() if to else _side_center(v.side, true)
 					_projectile(v.global_position + Vector3(0, 0.3, 0), dest, Color("#d9a066") if ev.get("pet", "") == "bruno" else Color("#555555"), 0.18)
 					return 0.22
 				_:
+					Audio.sfx("magic")
 					v.cast_pulse(c)
 					if to and to != v:
 						_projectile(v.center_pos(), to.center_pos(), c)
 					return 0.28
 		"dmg":
 			hp_shown[ev.uid] = ev.hp
+			Audio.sfx("crit" if ev.crit else {"poison": "poison", "burn": "burn", "boom": "boom"}.get(ev.kind, "hit"))
 			var p := hud.plate(ev.uid)
 			if p:
 				p.set_hp(ev.hp, ev.shield)
@@ -364,6 +390,7 @@ func _play(ev: Dictionary) -> float:
 			return 0.07
 		"heal":
 			hp_shown[ev.uid] = ev.hp
+			Audio.sfx("heal")
 			var p := hud.plate(ev.uid)
 			if p:
 				p.set_hp(ev.hp, p.shield)
@@ -371,15 +398,20 @@ func _play(ev: Dictionary) -> float:
 				_float(v, "+%d" % ev.amount, Color("#5effc8"))
 			return 0.05
 		"shield":
+			Audio.sfx("shield")
 			var p := hud.plate(ev.uid)
 			if p:
 				p.set_hp(hp_shown.get(ev.uid, 0), ev.shield)
 			return 0.04
 		"miss":
+			Audio.sfx("miss")
 			if v:
 				_float(v, ev.text, Color("#c8cbe0"), 0.85)
 			return 0.12
 		"status":
+			var snd := _status_sound(ev.text)
+			if snd != "":
+				Audio.sfx(snd)
 			if v:
 				_float(v, ev.text, Color(ev.color), 0.75)
 				if ev.text == "Away":
@@ -395,12 +427,15 @@ func _play(ev: Dictionary) -> float:
 		"cast":
 			var u := b.unit(ev.uid)
 			hud.message("%s used [b]%s[/b]!" % [u.name, ev.name])
+			if ev.ult:
+				Audio.sfx("ult")
 			if ev.ult and v:
 				v.play("ultimate")
 				_punch(0.8)
 			return 0.6 if ev.ult else 0.42
 		"death":
 			var u := b.unit(ev.uid)
+			Audio.sfx("faint")
 			if v:
 				v.faint()
 			var p := hud.plate(ev.uid)
@@ -410,6 +445,7 @@ func _play(ev: Dictionary) -> float:
 			hud.message("%s fainted!" % u.name)
 			return 0.5
 		"revive":
+			Audio.sfx("revive")
 			if v:
 				v.revive()
 			var p := hud.plate(ev.uid)
@@ -419,6 +455,7 @@ func _play(ev: Dictionary) -> float:
 			hp_shown[ev.uid] = ev.hp
 			return 0.4
 		"aoe":
+			Audio.sfx("aoe")
 			var rgb: PackedStringArray = str(ev.color).split(",")
 			if rgb.size() == 3:
 				hud.flash(Color8(int(rgb[0]), int(rgb[1]), int(rgb[2])), 0.28)
@@ -427,6 +464,7 @@ func _play(ev: Dictionary) -> float:
 			_shake = maxf(_shake, ev.power * 0.025)
 			return 0.0
 		"banner":
+			Audio.sfx("banner")
 			hud.banner(ev.text, ev.get("sub", ""))
 			return 1.0
 		"model":
@@ -437,8 +475,10 @@ func _play(ev: Dictionary) -> float:
 		"fx":
 			match ev.kind:
 				"truck", "subaru":
+					Audio.sfx("car")
 					_drive_by(Color("#4fc3ff") if ev.kind == "truck" else Color("#2e5cb8"))
 				"wife":
+					Audio.sfx("hearts")
 					if v:
 						for i in 6:
 							_float(v, "<3", Color("#ff7ae0"), 0.9)
@@ -450,6 +490,7 @@ func _play(ev: Dictionary) -> float:
 				p.set_resource(ev.mp if u.max_mp > 0 else ev.energy, u.max_mp if u.max_mp > 0 else u.max_energy)
 			return 0.0
 		"popup":
+			Audio.sfx("popup")
 			state = State.POPUP
 			hud.hide_commands()
 			hud.show_popup(ev, Game.settings.get("popup_timer", 1.0))
@@ -460,6 +501,7 @@ func _play(ev: Dictionary) -> float:
 			if views.has(ev.uid):
 				return 0.0 # already on stage (spawned before the first frame)
 			var u := b.unit(ev.uid)
+			Audio.sfx("spawn")
 			_add_unit(u)
 			hud.message("%s appeared!" % u.name)
 			return 0.4
@@ -615,6 +657,7 @@ func _on_over() -> void:
 	hud.hide_commands()
 	hud.set_round("")
 	var win := b.outcome == "win"
+	Audio.play_music("victory" if win else "gameover", 0.0)
 	hud.banner("VICTORY!" if win else "DEFEATED", "", UITheme.ACCENT if win else UITheme.HP_RED)
 	for id in views:
 		var won_side := "hero" if win else "enemy"

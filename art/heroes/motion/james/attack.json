@@ -1,8 +1,11 @@
 {
   "hero": "james",
   "anim": "attack",
-  "model": "keyframed",
-  "frames": 48,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person swings a golf club hard with both hands in a full golf swing.",
+  "seconds": 1.8,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 54,
+  "joints": 77,
+  "fps": 30
 }

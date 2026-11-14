@@ -14,6 +14,7 @@ func _ready() -> void:
 	if not Game.test_fight.is_empty():
 		Game.go_battle.call_deferred()
 		return
+	Audio.play_music("title")
 	_build_world()
 	_build_ui()
 	if OS.get_cmdline_user_args().has("--continue") and not Game.run.is_empty():

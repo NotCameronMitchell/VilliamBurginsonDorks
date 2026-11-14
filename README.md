@@ -54,15 +54,15 @@ In battle:
 - **Hover over a move** (PC) or **long-press it** (phone) to read what it does.
 - **Hero tabs** let you act in any order. **Wait** skips a hero.
 - **Auto** lets the AI play, **1x/2x** speeds up the animations, and **Settings**
-  has the Copilot pop-up timer (Normal / Long / Off) and text speed.
+  has the Copilot pop-up timer (Normal / Long / Off), text speed, music and sounds. The
+  office's **Menu** has music and sounds too.
 
 **Heroes** are detailed, realistic models of the real people, built in Blender with free
 tools:
 - **Bodies and faces:** MakeHuman builds the bodies, faces, hair and rig, through the MPFB
   add-on.
 - **Clothes:** generated from each hero's own body, so a skin is just data.
-- **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts, with
-  keyframed stand-ins until its text model is unlocked.
+- **Motion:** NVIDIA Kimodo makes motion-captured animations from text prompts.
 
 Build them with `powershell -File art/tools/heroes.ps1 assemble --makehuman`. See "Detailed
 heroes" in [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
@@ -75,6 +75,14 @@ heroes" in [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
 
 Rebuild them with `powershell -File art/tools/run_blender.ps1`.
 
+**Music and sounds** are made in code too, by `art/audio/make_audio.py`:
+- **Music:** five original chiptune loops (menu, office, battle, boss, burger joint) and
+  the victory and game-over jingles.
+- **Sounds:** 29 sound effects for hits, heals, status effects, UI clicks and the office.
+
+Remake them with `powershell -File art/audio/make_audio.ps1`. See "Music and sounds" in
+[docs/ART_PIPELINE.md](docs/ART_PIPELINE.md).
+
 **Test flags** (after `--`):
 - **Fights:** `--fight=<boss id|crew|minions>`, `--party=a,b,c,d`, `--remix`.
 - **Playback:** `--auto` (the AI plays, including walking the office), `--skip-story`,
@@ -85,6 +93,7 @@ Rebuild them with `powershell -File art/tools/run_blender.ps1`.
 - **Saves and screens:** `--save-dir=user://test/` (a separate save profile),
   `--continue` (resume the saved run), `--touch` (show the joystick), and
   `--shots=<dir>` to save screenshots.
+- **Sound:** `--mute` turns off music and sounds.
 
 For example:
 
@@ -116,6 +125,7 @@ Village Sauce upgrades. This is the main balance check.
 - `scripts/game/save_game.gd`: saves (meta progress, run in progress, Hall of Fame)
 - `scripts/data/`: also `run_events.gd`, `achievements.gd`, `outfits.gd`, `meta_upgrades.gd`
 - `scripts/game/game_state.gd`: the `Game` autoload (saves, settings, scene changes, test flags)
+- `scripts/game/audio.gd`: the `Audio` autoload (music crossfades, sound effects, volumes)
 - `scenes/battle/`: the battle screen: `battle_scene.gd` replays the engine's events;
   `battle_hud.gd` and `unit_plate.gd` are the UI; `unit_view.gd` and `arena.gd` the 3D stage
 - `scenes/run/run_overlay.gd`: loot, upgrade cards, shop and event panels

@@ -1,8 +1,11 @@
 {
   "hero": "cam",
   "anim": "cast",
-  "model": "keyframed",
-  "frames": 69,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person tells an animated story, waving their hands around expressively.",
+  "seconds": 2.2,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 66,
+  "joints": 77,
+  "fps": 30
 }

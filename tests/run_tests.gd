@@ -32,6 +32,7 @@ func _init() -> void:
 	test_achievements_and_outfits()
 	test_saves()
 	test_models()
+	test_audio()
 	test_overworld_logic()
 	test_office_map()
 	if OS.get_environment("FULL_RUN") == "1":
@@ -773,6 +774,39 @@ func test_office_map() -> void:
 
 
 const ANIMS := ["idle", "walk", "attack", "cast", "hit", "stunned", "faint", "victory", "ultimate"]
+## Music loop lengths in seconds (art/audio/make_audio.py): whole bars, so they loop cleanly.
+const MUSIC_LENGTHS := {"title": 30.0, "office": 40.0, "battle": 51.2, "boss": 48.0, "final": 64.0}
+
+
+## Every sound and track the code plays exists, and the music loops are the right length.
+func test_audio() -> void:
+	var sounds := {"crit": true, "hit": true, "poison": true, "burn": true, "boom": true,
+		"stun": true, "buff": true, "debuff": true, "click": true}  # picked in code, not literals
+	var tracks := {"title": true, "office": true, "battle": true, "boss": true, "final": true,
+		"victory": true, "gameover": true}
+	var re_sfx := RegEx.create_from_string("Audio\\.sfx\\(\"([a-z_]+)\"")
+	var re_music := RegEx.create_from_string("Audio\\.play_music\\(\"([a-z_]+)\"")
+	var files := []
+	for root in ["res://scenes/", "res://scripts/"]:
+		for sub in DirAccess.get_directories_at(root):
+			for f in DirAccess.get_files_at(root + sub):
+				if f.ends_with(".gd"):
+					files.append(root + sub + "/" + f)
+	for path in files:
+		var src := FileAccess.get_file_as_string(path)
+		for m in re_sfx.search_all(src):
+			sounds[m.get_string(1)] = true
+		for m in re_music.search_all(src):
+			tracks[m.get_string(1)] = true
+	check(sounds.size() > 20, "the code plays sounds (%d found)" % sounds.size())
+	for s in sounds:
+		check(ResourceLoader.exists("res://assets/audio/sfx/%s.wav" % s), "sound %s.wav exists" % s)
+	for t in tracks:
+		var path := "res://assets/audio/music/%s.ogg" % t
+		check(ResourceLoader.exists(path), "music %s.ogg exists" % t)
+		if ResourceLoader.exists(path) and MUSIC_LENGTHS.has(t):
+			var len_s: float = (load(path) as AudioStream).get_length()
+			check(absf(len_s - MUSIC_LENGTHS[t]) < 0.03, "music %s is %.2fs long (want %.2f)" % [t, len_s, MUSIC_LENGTHS[t]])
 
 
 ## Every exported model loads, has a skeleton and all the animations the game plays,

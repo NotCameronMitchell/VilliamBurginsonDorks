@@ -1,8 +1,11 @@
 {
   "hero": "cam",
   "anim": "idle",
-  "model": "keyframed",
+  "prompt": "A person stands relaxed and cool with their hands in their pockets, nodding their head slowly to a beat.",
+  "seconds": 4.0,
+  "seed": 100,
+  "model": "Kimodo-SOMA-RP-v1.2",
   "frames": 120,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "joints": 77,
+  "fps": 30
 }

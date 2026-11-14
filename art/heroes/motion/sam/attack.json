@@ -1,8 +1,11 @@
 {
   "hero": "sam",
   "anim": "attack",
-  "model": "keyframed",
-  "frames": 51,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person lifts a heavy object over their head with both hands and slams it down in front of them.",
+  "seconds": 1.8,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 54,
+  "joints": 77,
+  "fps": 30
 }

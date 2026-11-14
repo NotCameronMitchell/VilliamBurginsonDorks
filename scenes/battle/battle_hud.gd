@@ -235,29 +235,11 @@ func _build_settings() -> void:
 	v.add_theme_constant_override("separation", 8)
 	_settings.add_child(v)
 	v.add_child(UITheme.label("Settings", 22))
-	v.add_child(_option_row("Copilot pop-up timer", [["Normal", 1.0], ["Long", 1.6], ["Off", 0.0]], "popup_timer"))
-	v.add_child(_option_row("Text speed", [["Normal", 1.0], ["Fast", 2.0]], "text_speed"))
+	v.add_child(SettingsRows.option_row("Copilot pop-up timer", [["Normal", 1.0], ["Long", 1.6], ["Off", 0.0]], "popup_timer"))
+	v.add_child(SettingsRows.option_row("Text speed", [["Normal", 1.0], ["Fast", 2.0]], "text_speed"))
+	for row in SettingsRows.sound_rows():
+		v.add_child(row)
 	v.add_child(_button("Close", func(): _settings.visible = false))
-
-
-func _option_row(title: String, options: Array, key: String) -> Control:
-	var v := VBoxContainer.new()
-	v.add_child(UITheme.label(title, 16, UITheme.DARK))
-	var h := HBoxContainer.new()
-	var group := ButtonGroup.new()
-	for o in options:
-		var b := Button.new()
-		b.text = o[0]
-		b.toggle_mode = true
-		b.button_group = group
-		b.custom_minimum_size = Vector2(90, 40)
-		b.button_pressed = is_equal_approx(float(Game.settings.get(key, 1.0)), o[1])
-		b.pressed.connect(func():
-			Game.settings[key] = o[1]
-			Game.save())
-		h.add_child(b)
-	v.add_child(h)
-	return v
 
 
 func _toggle_speed() -> void:
@@ -303,6 +285,7 @@ func dialog(speaker: String, text: String) -> void:
 	_speaker.text = speaker
 	_speaker.visible = speaker != ""
 	_more.visible = true
+	Audio.sfx("blip", -4.0)
 	_type(text)
 
 

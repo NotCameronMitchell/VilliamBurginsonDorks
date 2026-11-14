@@ -1,8 +1,11 @@
 {
   "hero": "mason",
   "anim": "attack",
-  "model": "keyframed",
-  "frames": 45,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person takes a quick step and kicks a ball forward hard with their right foot.",
+  "seconds": 1.6,
+  "seed": 102,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 48,
+  "joints": 77,
+  "fps": 30
 }

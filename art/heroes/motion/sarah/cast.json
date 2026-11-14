@@ -1,8 +1,11 @@
 {
   "hero": "sarah",
   "anim": "cast",
-  "model": "keyframed",
-  "frames": 57,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person does a dab, ducking their head into one bent elbow while the other arm points up and out.",
+  "seconds": 1.8,
+  "seed": 103,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 54,
+  "joints": 77,
+  "fps": 30
 }

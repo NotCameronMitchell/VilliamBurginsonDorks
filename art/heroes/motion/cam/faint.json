@@ -1,8 +1,11 @@
 {
   "hero": "cam",
   "anim": "faint",
-  "model": "keyframed",
-  "frames": 81,
-  "fps": 30,
-  "note": "stand-in until Kimodo runs (heroes.ps1 motions replaces it)"
+  "prompt": "A person loses consciousness, their knees buckle, and they collapse backward onto the floor and lie still.",
+  "seconds": 3.0,
+  "seed": 14,
+  "model": "Kimodo-SOMA-RP-v1.2",
+  "frames": 90,
+  "joints": 77,
+  "fps": 30
 }

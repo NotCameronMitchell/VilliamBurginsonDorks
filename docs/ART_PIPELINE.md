@@ -9,7 +9,7 @@ people, built in Blender with free tools. Bosses and minions are still the chibi
 |---|---|---|
 | Body, face, hair, rig | MakeHuman, through MPFB 2 (a Blender add-on; CC0 assets) | built fresh each time |
 | Clothes | `garments.py`, generated from each hero's own body | built fresh each time |
-| Motions | NVIDIA Kimodo (text to motion), or keyframed stand-ins | `art/heroes/motion/<hero>/<anim>.npz` |
+| Motions | NVIDIA Kimodo (text to motion) | `art/heroes/motion/<hero>/<anim>.npz` |
 | Retarget and export | `hero_assemble.py` | `assets/models/heroes/<id>.glb` |
 
 Each part lives in its own file:
@@ -29,7 +29,9 @@ powershell -File art/tools/heroes.ps1 motions [--only cole]
 - `--looks-only` builds the models and renders a front view plus a face close-up of each, in
   about 4 seconds a hero. It runs no motions and writes no export.
 - `--render` with a full build also saves a contact sheet, with a row per animation.
-- `motions` runs Kimodo and needs the Llama 3 access described below.
+- `motions` runs Kimodo and needs its text encoder (see "Kimodo setup" below). It only remakes
+  motions whose prompt, length or seed changed in `hero_specs.py`; `--force` remakes them all.
+  Then run `assemble` again.
 
 **One-time setup:** run `art/tools/makehuman_setup.py` in Blender
 (`blender -b -P art/tools/makehuman_setup.py -- --log C:\temp\mh.log`). It installs MPFB into a
@@ -54,10 +56,14 @@ system assets.
 8. **Shoes and extras:** shoes are MakeHuman's, recolored. Caps, glasses, sunglasses and
    watches are built in code.
 
-**Motions:** Kimodo needs Meta's Llama 3 8B, which is gated. Until access is granted,
-`art/tools/motion_keys.py` writes keyframed stand-in motions in the same format, each with a
-little style per hero. Their sidecar files say `"model": "keyframed"`, so the next `motions`
-run replaces them with Kimodo motions. The forms reuse their hero's motions.
+**Motions:** every animation is a Kimodo motion made from a text prompt in `hero_specs.py`.
+- **Shared:** walk, hit, stunned and faint use the same prompt for everyone.
+- **Per hero:** idle, attack, cast, victory and ultimate have their own prompts, such as Cole's
+  golf-swing attack.
+- **Forms:** the forms reuse their hero's motions.
+- **Time:** the 54 motions take about 3 minutes on an RTX 5060, after the text encoder loads.
+- **Fallback:** `art/tools/motion_keys.py` still writes keyframed stand-ins in the same format
+  (`"model": "keyframed"` in their sidecar files), for a PC without Kimodo.
 
 **Retargeting:** Kimodo poses its SOMA skeleton with world rotations relative to a T-pose.
 For each motion:
@@ -80,9 +86,14 @@ JPEG textures, so WebP is used instead.
    cards).
 4. Install Kimodo with `SKIP_MOTION_CORRECTION_IN_SETUP=1 pip install -e .`. This skips
    Kimodo's optional C++ foot-skate cleanup, which needs a compiler.
-5. **Text encoder:** accept Meta's license at huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct,
-   then sign in to Hugging Face on this PC. On an 8 GB GPU the encoder runs on the CPU, which
-   needs about 16 GB of RAM.
+5. **Text encoder:** run `powershell -File art/tools/heroes.ps1 motions --fetch-encoder`. It
+   downloads about 16 GB into `~/.vbd/text_encoders` (or `$env:TEXT_ENCODERS_DIR`):
+   - Llama 3 8B Instruct, from the public copy `NousResearch/Meta-Llama-3-8B-Instruct`. Meta's
+     own repository is gated. Meta's Llama 3 license applies either way.
+   - McGill-NLP's two LLM2Vec adapters.
+
+   `kimodo_batch.py` finds the folder by itself. On an 8 GB GPU the encoder runs on the CPU,
+   which needs about 16 GB of RAM. Loading it takes about 20 seconds.
 
 **Earlier routes (kept, not used):**
 - `hero_builder.py` builds procedural bodies (`--procedural`).
@@ -294,6 +305,38 @@ powershell -File art/trailer/make_trailer.ps1 -Step stills          # one still 
 - **`trailer.py`:** builds the set and the ghost, and animates the heroes with their game
   animations. It renders the frames, then cuts in the titles, subtitles, fades and sound
   with Blender's video editor.
+
+## Music and sounds
+
+`art/audio/make_audio.py` writes all of the game's audio from code, with numpy and scipy,
+so it can be changed and remade like the models. Every piece is original.
+
+```
+powershell -File art/audio/make_audio.ps1                 # everything
+powershell -File art/audio/make_audio.ps1 --only boss,hit  # just these
+```
+
+| Track | Plays | Style |
+|---|---|---|
+| `title` | main menu | bouncy, heroic chiptune, C major, 128 BPM |
+| `office` | the office | swing elevator jazz: vibraphone, electric piano, walking bass |
+| `battle` | coworker fights | driving chiptune, A minor, 150 BPM |
+| `boss` | boss fights | heavier: saw lead, gritty bass, brass stabs, D minor, 160 BPM |
+| `final` | Villiam Burginson's | the menu tune as a minor-key anthem, with organ and brass |
+| `victory`, `gameover` | after a fight | a fanfare, and a sad trombone |
+
+- **Loops:** each loop is a whole number of bars. Anything still ringing at the end
+  (reverb, held notes) is folded back to the start, so the loop point is seamless.
+- **Music files:** OGG Vorbis in `assets/audio/music/`, encoded by Blender
+  (`art/audio/to_ogg.py`), so no extra tools are needed.
+- **Sounds:** 29 mono WAVs in `assets/audio/sfx/`: hits, crits, heals, buffs, debuffs,
+  shields, stuns, poison and burn, ultimates, faints, UI clicks, dialogue blips, the "!"
+  alert, the elevator ding and more.
+- **In the game:** the `Audio` autoload (`scripts/game/audio.gd`) plays them.
+  `play_music(track)` crossfades, and `sfx(name)` plays from a pool with a little pitch
+  variety. Buttons click by themselves.
+- **Adding a sound:** add a function and a `SFX` entry in `make_audio.py`, then call
+  `Audio.sfx("name")`. `tests/run_tests.gd` checks that every sound the code plays exists.
 
 ## Model checklist
 
