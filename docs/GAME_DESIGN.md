@@ -39,9 +39,17 @@ Coworkers stand at their desks; walk into their line of sight and you get a **"!
 and a minion fight. Each boss stands at the end of their area, and you have to talk
 to them to start the fight.
 
-**Route (one cycle):**
-Parking Lot → Desk Pods → Meeting Room → Middle of the Office → James's Old Desk →
-elevator down to **Villiam Burginson's**.
+**Route (one cycle):** like the original, a cycle is minion → boss three times, then
+the burger joint. Each cycle, **3 of the 5 office bosses are drawn at random**. Their
+areas open on the office map, and the other two areas have an "Out of Office" sign on
+the door. The bosses' areas are the Parking Lot, Desk Pods, Meeting Room, Middle of
+the Office and James's Old Desk. After the third boss, the elevator goes down to
+**Villiam Burginson's**.
+
+**Returning bosses.** A boss you've beaten can come back in a later cycle, with a
+slightly different look and one new trick (see "Remixes" under each boss). The first
+time you meet a boss, it's always the original version. After that, each time it's
+drawn there's a 50% chance it's the remix.
 
 **Battle stage.** The camera swoops in. Heroes stand on round platforms in the
 bottom left, enemies in the top right. Attack animations play on the 3D models,
@@ -87,6 +95,9 @@ and normal bosses still scale up each cycle. Each boss lists:
 - **Lines:** "SEND MY MONEY NOW." His other speech bubbles are bleeped rants
   ("#@$%&!!"). Defeated: "...I'll have my dispatcher call your dispatcher."
 - **Arena:** the parking lot, with the truck parked behind him.
+- **Remix, Night Shift Trucker:** hi-vis vest, sunglasses at night, the truck's
+  headlights on. **High Beams:** his ultimate also blinds a second hero (-30% accuracy
+  for 2 turns).
 
 ### 4.2 The Mystery Sales Guy (Desk Pods)
 
@@ -105,6 +116,8 @@ and normal bosses still scale up each cycle. Each boss lists:
   - Cam's Aura Farming makes him **immune to Mogged**, and every turn Cam takes
     he steals 1 Aura stack ("Cam out-aura'd him"). This is a fight where Cam shines.
 - **Defeated:** "*aura*" (it's fading).
+- **Remix, Q4 Sales Guy:** a stirrer over **both** ears, plus a quarter-zip. He starts
+  the fight with 2 Aura stacks.
 
 ### 4.3 The Copilot Grim Reaper (Meeting Room)
 
@@ -126,6 +139,9 @@ and normal bosses still scale up each cycle. Each boss lists:
   this." Defeated: "Fine. I'll just add it to your startup apps."
 - **Accessibility:** a Settings option makes the timer longer or turns it off, so the
   fight still works on a phone or for slower players.
+- **Remix, Copilot Pro Reaper:** a gold robe and a second laptop. Sometimes the pop-up
+  gets a third button, **"Upgrade to Pro"**, which acts like "Yes, install" but lasts
+  4 turns.
 
 ### 4.4 The Guardian of Tunes (Middle of the Office)
 
@@ -142,24 +158,37 @@ and normal bosses still scale up each cycle. Each boss lists:
   Confuses two heroes.
 - **Lines:** "Maroon 5 makes really good songs." / "Don't you just love Justin Bieber
   for the 10th time today?" Defeated: "...okay, you can pick the next song."
+- **Remix, Holiday Playlist Guardian:** a Santa hat and a light-up sweater, and the
+  Boombox is a jingling speaker. Earworm maxes out at 7 instead of 5.
 
 ### 4.5 The Ghost of James Civelli (James's Old Desk)
 
-*The desk was never cleaned out. Something's still logged in.*
+*James left for a new job, but his old desk was never cleaned out. The James who
+used to work here is still logged in.*
 
 - **HP** 230 · **ATK** 12
-- **Possession (gimmick, fight start):** the ghost instantly KOs the James in your
-  party for the whole fight. Nothing can revive him until the fight ends; afterwards
+- **Lore:** this is party James's own old-job self, wearing the brown matching set and
+  the mustache in see-through ghost blue. The intro plays it straight:
+  - **Ghost:** "Back from emails going through lunch."
+  - **James:** "...is that me?"
+- **Possession (gimmick, fight start):** the ghost reaches into James and takes back
+  "his" spot. Party James is instantly KO'd for the whole fight. Nothing can revive him until the fight ends; afterwards
   he comes back at 50% HP. This doesn't count as a death for achievements or run stats.
   To make up for fighting three against one, the ghost has the lowest HP of any boss.
-- **If there's no James in the party:** the ghost is bored. +20% HP and ATK, and each
+- **Mirror moves:** he fights with ghost versions of James's own kit. Daily Dollar
+  becomes Haunted Blackjack (he gambles with *your* HP), and Peptide Rage becomes
+  Spectral Rage.
+- **If there's no James in the party** (once the roster grows past 4): the ghost is bored. +20% HP and ATK, and each
   turn he haunts the hardest hitter (Weaken 15%).
 - **My New Irons Are So Sick:** a full golf swing, 170% ATK to one hero, and it can't
   be dodged.
 - **Back From Emails Going Through Lunch (ultimate, every 5 turns):** he goes Away
   for a turn (can't be targeted), then comes back healed 15%.
 - **Ghostly Reply-All:** 50% ATK to the whole party, and Poisons.
-- **Defeated:** "Tell everyone I said what's up. I'm going to go hit balls."
+- **Defeated:** "Tell everyone I said what's up. I'm going to go hit balls." James
+  wakes up: "Bih Ahh Boi."
+- **Remix, Golf Trip Ghost:** a visor, plaid pants and a ghostly golf bag. My New
+  Irons hits twice.
 
 ### 4.6 The Villiam Burginson Crew (Final boss at Villiam Burginson's)
 
@@ -181,6 +210,8 @@ crew / cook / coworker fight.
 - **Protect the Sauce (passive):** when one member falls, the others get +25% ATK. The
   last one standing gets a 20% max HP shield.
 - **Defeated:** "...fine. One sauce. ONE."
+- **Remix, Late Night Crew (cycle 2+):** paper hats, the lights dimmed, and a "closing
+  soon" sign up. The Cashier's Silence also hits the hero next to the target.
 
 > **Naming note:** this design calls them "The Villiam Burginson Crew", so the
 > jokes come from the burger job and the sauce gatekeeping. Tell me if you want a
@@ -261,13 +292,33 @@ screen.
 for big changes like a suit, built on the same rig, so every skin works with every
 animation. See [ART_PIPELINE.md](ART_PIPELINE.md).
 
-## 8. Open questions
+## 8. Platforms: phone and PC
 
-- Should the bosses come in a **fixed order** (like gym leaders, following the route
-  in section 3), or be **drawn at random** each cycle like the original?
-- Are the old bosses (Middle Manager, HR Rep, ...) gone for good, or do they come back
-  as harder minibosses in cycle 2+?
-- Is the Ghost of James Civelli the same James who's in the party (the ghost of his
-  old job), or a different James?
-- Platforms: PC only, or PC + phone? The original was a phone-friendly web game. Godot
-  can export to the web and Android, but 3D on phones needs a lower-poly budget.
+- **Builds:** Windows (desktop) and Android, plus a web build so it can still be
+  played from a link like the original. iOS later: that needs a Mac to build.
+- **Renderer:** Godot's **Mobile** renderer on every platform, so phone and PC look
+  the same and there are no PC-only effects to cut later.
+- **Layout:** landscape only. Every menu works with touch, mouse, keyboard and
+  controller:
+  - Buttons are at least 48 px tall.
+  - The move menu sits in the bottom-right, within thumb reach.
+  - Tooltips open on a long-press on phones, and on hover or right-click on PC.
+- **Overworld controls:** a virtual joystick on phones, WASD or arrow keys on PC, and
+  tap-to-move on both.
+- **Performance budget:** 60 fps on a mid-range phone. That means the poly budgets in
+  [ART_PIPELINE.md](ART_PIPELINE.md), one shared palette material, baked lighting in
+  arenas, and only the sun casting real-time shadows.
+- **Saves:** a local save file on each device (no cross-device sync for now).
+
+## 9. Decisions log
+
+- **Bosses:** drawn at random each cycle (3 of the 5 office bosses), with the burger
+  crew always last. Bosses you've beaten come back in later cycles as remixes with a
+  new look and one new trick.
+- **The Ghost of James Civelli** is party James's own old-job self.
+- **Platforms:** phone and PC.
+
+## 10. Open questions
+
+- The original's bosses (Middle Manager, HR Rep, ...): gone for good, or occasional
+  surprise bosses in cycle 3+?

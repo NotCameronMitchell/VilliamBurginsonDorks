@@ -94,7 +94,7 @@ func _build_ui() -> void:
 	ui.add_child(title)
 
 	_prompt = Label.new()
-	_prompt.text = "Press Start  (Enter)"
+	_prompt.text = "Tap or press Enter"
 	_prompt.add_theme_font_size_override("font_size", 32)
 	_prompt.add_theme_color_override("font_outline_color", Color("#1a1a2e"))
 	_prompt.add_theme_constant_override("outline_size", 10)
@@ -112,7 +112,8 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept"):
+	var tapped := event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	if tapped or event.is_action_pressed("ui_accept"):
 		print("Start pressed: the Suit Up screen comes next.")
 
 

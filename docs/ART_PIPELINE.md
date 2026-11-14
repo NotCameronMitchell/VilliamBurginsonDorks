@@ -76,6 +76,15 @@ Copilot Grim Reaper (plus laptop and scythe), Guardian of Tunes (plus the Boombo
 Ghost of James Civelli (translucent material), Villiam Burginson Crew (Cashier, Grill
 Master, Sauce Keeper)
 
+**Boss remixes** (each is the same model with a palette swap plus 1-2 accessory meshes
+on the same rig):
+- Night Shift Trucker: hi-vis vest, sunglasses
+- Q4 Sales Guy: second stirrer, quarter-zip
+- Copilot Pro Reaper: gold robe palette, second laptop
+- Holiday Playlist Guardian: Santa hat, sweater palette, jingle speaker
+- Golf Trip Ghost: visor, plaid palette, golf bag
+- Late Night Crew: paper hats
+
 **Minions:** Energy Drink, Tallboy, Nicotine Pouch, Pouch Tin, Reply-All Guy, Microwave
 Fish Guy, Mechanical Keyboard Guy, Close Talker
 
