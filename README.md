@@ -35,14 +35,16 @@ godot --headless --path . --script res://tests/run_tests.gd
 ```
 
 Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. Add
-`BALANCE_DETAIL=<hero id>` to see where that hero's damage comes from.
+`BALANCE_DETAIL=<hero id>` to see where that hero's damage comes from. Set
+`BOSSES=1` for every boss against every party, at the original's enemy scaling.
 
 ## Code
 
 - `scripts/core/battle.gd`: the deterministic turn-based combat engine. It records
   events that the battle scene plays back.
 - `scripts/data/hero_data.gd`: the six heroes, their abilities and weapons
-- `scripts/data/enemy_data.gd`: minions (the new bosses go here next)
+- `scripts/data/enemy_data.gd`: minions, the six bosses, their remixes and gimmicks
+- `scripts/data/story.gd`: the run intro, burger joint lines, and each boss's lines
 - `scripts/game/battle_ai.gd`: the AI used by tests and the Auto button
 
 ## Status
@@ -51,8 +53,8 @@ Set `BALANCE=1` for a balance report: every 4-of-6 party, simulated by the AI. A
 - [x] Project skeleton with a title screen and placeholder heroes
 - [x] Combat engine and the 4 original heroes, ported from the original (with the balance changes)
 - [x] Sam and Sarah, tuned with the simulator
+- [x] The six new bosses and their remixes, with intro and defeat lines
 - [ ] Battle scene and Pokemon-style HUD
 - [ ] First Blender models (heroes)
 - [ ] Overworld office map
-- [ ] New bosses
 - [ ] Achievements, skins, saves

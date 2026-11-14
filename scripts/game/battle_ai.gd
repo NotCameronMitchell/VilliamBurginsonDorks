@@ -63,6 +63,15 @@ static func choose_action(b: Battle, u: BattleUnit) -> Array:
 		if f.boss:
 			boss = f
 	var focus: BattleUnit = boss if boss and foes.size() <= 2 else _lowest(foes)
+	# Break the Guardian's Boombox once the Earworm builds up.
+	for f in foes:
+		if f.key == "boombox" and b.power(u, "earworm") >= 0.24:
+			focus = f
+	# Hit the Sauce Keeper while the party is waiting on sauce.
+	if b.has(u, "waiting_sauce"):
+		for f in foes:
+			if f.key == "sauce_keeper":
+				focus = f
 	var hp_frac := float(u.hp) / u.max_hp
 	for id in _order(b, u, foes):
 		if id == "transfer_uw" and hp_frac > 0.6 and foes.size() > 1:
@@ -85,19 +94,37 @@ static func _target_for(b: Battle, u: BattleUnit, o: Dictionary, focus: BattleUn
 	return Battle.NO_TARGET
 
 
+## How a simulated player answers Cowork pop-ups: chance to click "Not now" in time,
+## chance to click "Yes, install" by mistake. The rest time out.
+const POPUP_DISMISS := 0.75
+const POPUP_INSTALL := 0.1
+
+
+static func answer_popup(b: Battle) -> void:
+	var r := b.rng.next()
+	if r < POPUP_DISMISS:
+		b.answer_popup("dismiss")
+	elif r < POPUP_DISMISS + POPUP_INSTALL:
+		b.answer_popup("pro" if b.pending_popup.pro else "install")
+	else:
+		b.answer_popup("timeout")
+
+
 ## Plays a whole fight with the AI. Returns "win" or "lose".
 static func auto_battle(b: Battle, max_rounds := 60) -> String:
 	var guard := 0
 	while b.outcome == "" and b.round <= max_rounds and guard < 5000:
 		guard += 1
-		if b.phase == "hero":
+		if not b.pending_popup.is_empty():
+			answer_popup(b)
+		elif b.phase == "hero":
 			var rdy := b.ready()
 			if rdy.is_empty():
 				break
 			var u: BattleUnit = rdy[0]
 			var pick := choose_action(b, u)
-			if not b.act(u.uid, pick[0], pick[1]):
-				b.act(u.uid, "attack")
+			if not b.act(u.uid, pick[0], pick[1]) and not b.act(u.uid, "attack"):
+				b.pass_turn(u.uid)
 		else:
 			b.enemy_step()
 	return b.outcome if b.outcome != "" else "lose"

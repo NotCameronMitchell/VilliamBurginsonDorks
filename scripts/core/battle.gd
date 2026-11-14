@@ -30,7 +30,15 @@ var kills := 0
 var stats := {
 	"we_go_next": false, "cole_revived": false, "blackjack": false, "titan_hits": 0,
 	"rage_bait_crits": 0, "sam_damaged": false, "best_dab": 0,
+	"cole_stunned": false, "aura_stolen": 0, "popups": 0, "popups_dismissed": 0,
+	"boomboxes": 0, "james_possessed": false, "silenced": false,
 }
+## Boss state
+var mog := 0 ## the Mystery Sales Guy's Aura stacks: -6% hero damage each (not Cam)
+var pending_popup := {} ## a Cowork pop-up waiting for the player: {uid, left, timer, swap, pro}
+var popup_count := 0 ## pop-ups shown this fight (the timer shrinks)
+var last_ability_uid := NO_TARGET ## last hero to use an ability (the Cashier silences them)
+var enemy_scale := {"hp_mult": 1.0, "atk_mult": 1.0} ## for mid-fight spawns
 var goblin := 0 ## stun length of a pending Mind Goblin trap (0 = none)
 var last_hero_hit := {} ## {uid, amount}: for High on Potenuse
 var dmg_by := {} ## uid -> total damage dealt, for balance reports
@@ -40,14 +48,36 @@ var _queue: Array[int] = []
 var _next_uid := 1
 
 
-## heroes: Array of setups from Battle.hero_setup(); enemies: Array of {id, hp_mult, atk_mult, suffix}.
+## heroes: Array of setups from Battle.hero_setup();
+## enemies: Array of {id, hp_mult, atk_mult, suffix, remix}.
 func _init(heroes: Array, enemies: Array, seed: int) -> void:
 	rng = Rng.new(seed)
 	for i in heroes.size():
 		units.append(_make_hero(heroes[i], i))
 	for i in enemies.size():
 		units.append(_make_enemy(enemies[i], i))
+	if not enemies.is_empty():
+		enemy_scale = {"hp_mult": enemies[0].get("hp_mult", 1.0), "atk_mult": enemies[0].get("atk_mult", 1.0)}
+	for e in enemies():
+		EnemyData.on_fight_start(self, e)
 	_begin_hero_phase(true)
+
+
+## Adds an enemy mid-fight (the Guardian's Boombox). Emits a spawn event.
+func add_enemy(id: String, owner: BattleUnit = null, hp_mult := 1.0) -> BattleUnit:
+	var setup := enemy_scale.duplicate()
+	setup.id = id
+	setup.hp_mult = setup.hp_mult * hp_mult
+	var u := _make_enemy(setup, enemies().size())
+	if owner:
+		u.owner_uid = owner.uid
+	units.append(u)
+	emit({"t": "spawn", "uid": u.uid, "key": u.key})
+	return u
+
+
+func has_enemy(key: String) -> bool:
+	return enemies().any(func(e): return e.key == key and e.alive)
 
 
 ## A hero at base stats with the default weapon. Override fields as needed.
@@ -110,8 +140,14 @@ func _make_enemy(e: Dictionary, slot: int) -> BattleUnit:
 	var d: Dictionary = EnemyData.ENEMIES[e.id]
 	var u := _base("enemy", e.id, slot)
 	var hp := roundi(d.hp * e.get("hp_mult", 1.0))
-	u.name = "%s (%s)" % [d.name, e.suffix] if e.has("suffix") else d.name
+	u.remix = e.get("remix", false) and d.has("remix_name")
+	u.name = d.remix_name if u.remix else d.name
+	if e.has("suffix"):
+		u.name = "%s (%s)" % [u.name, e.suffix]
+	u.model = e.id + ("_remix" if u.remix else "")
+	u.base_model = u.model
 	u.boss = d.get("boss", false)
+	u.inert = d.get("inert", false)
 	u.max_hp = hp
 	u.hp = hp
 	u.atk = d.atk * e.get("atk_mult", 1.0)
@@ -183,7 +219,10 @@ func rank(u: BattleUnit, id: String) -> int:
 
 ## Damage multiplier from buffs, debuffs and passives; also scales DoTs and effects.
 func mult(u: BattleUnit) -> float:
-	return maxf(0.1, 1.0 + power(u, "empower") + u.dmg_bonus + u.aura - power(u, "weaken"))
+	var m := 1.0 + power(u, "empower") + u.dmg_bonus + u.aura - power(u, "weaken")
+	if mog > 0 and u.side == "hero" and u.key != "cam":
+		m -= 0.06 * mog
+	return maxf(0.1, m)
 
 
 ## Heroes who can still take an action this phase.
@@ -259,10 +298,10 @@ func _resource_event(u: BattleUnit) -> void:
 func add_status(u: BattleUnit, kind: String, dur: int, pow := 0.0, src := NO_TARGET, quiet := false) -> void:
 	if not u.alive or dur <= 0:
 		return
+	if kind == "stun" and has(u, "resolve"):
+		note(u, "Resists")
+		return
 	if kind == "stun" and u.boss:
-		if has(u, "resolve"):
-			note(u, "Resists")
-			return
 		# Diminishing returns: each stun after the first lasts a turn less (min 1).
 		dur = maxi(1, dur - u.stuns_taken)
 		u.stuns_taken += 1
@@ -332,9 +371,13 @@ func hit(src: BattleUnit, tgt: BattleUnit, m: float, o := {}) -> int:
 	mul += src.prep.get("lesson", 0.0) if weapon else src.ability_bonus
 	var dmg := base * maxf(0.1, mul)
 	var crit := false
+	if has(src, "blind") and src != tgt and rng.chance(power(src, "blind")):
+		emit({"t": "miss", "uid": tgt.uid, "text": "Blinded"})
+		return 0
 	if not o.get("no_crit", false) and flat == null and rng.chance(src.crit + power(src, "crit") + o.get("crit_bonus", 0.0)):
 		dmg *= 1.6
 		crit = true
+	dmg *= 1.0 + power(tgt, "earworm")
 	var exposed := has(tgt, "exposed")
 	if exposed:
 		dmg *= 1.0 + power(tgt, "exposed")
@@ -361,6 +404,7 @@ func hit(src: BattleUnit, tgt: BattleUnit, m: float, o := {}) -> int:
 		last_hero_hit = {"uid": src.uid, "amount": amount}
 	if crit and o.get("rage_bait", false):
 		stats.rage_bait_crits += 1
+	EnemyData.on_hit(self, src, tgt, amount, crit)
 	if weapon and src.alive:
 		if src.prep.has("burn"):
 			add_status(tgt, "burn", 3, src.prep.burn, src.uid)
@@ -387,6 +431,8 @@ func damage(u: BattleUnit, amount: int, kind: String, crit := false, src: Battle
 	if u.key == "sam" and u.side == "hero":
 		stats.sam_damaged = true
 	emit({"t": "dmg", "uid": u.uid, "amount": amount, "hp": u.hp, "shield": u.shield, "crit": crit, "kind": kind})
+	if src and src.side == "hero" and u.key == "sauce_keeper":
+		EnemyData.sauce_keeper_hit(self, u)
 	if u.hp <= 0:
 		kill(u)
 
@@ -416,6 +462,10 @@ func kill(u: BattleUnit) -> void:
 	emit({"t": "death", "uid": u.uid})
 	if u.side == "enemy":
 		kills += 1
+		EnemyData.on_death(self, u)
+		for s in enemies():
+			if s.owner_uid == u.uid and s.alive:
+				kill(s)
 	if u.key == "cole" and u.side == "hero" and not u.passive_used:
 		u.passive_used = true
 		u.revive_next = true
@@ -445,11 +495,21 @@ func _decrement(side: String) -> void:
 		if u.side != side:
 			continue
 		var stunned := has(u, "stun")
+		var waiting := has(u, "waiting_sauce")
 		for s in u.statuses:
 			s.dur -= 1
 		u.statuses = u.statuses.filter(func(s): return s.dur > 0)
 		if u.boss and stunned and not has(u, "stun"):
 			u.statuses.append({"kind": "resolve", "dur": 2, "power": 0.0, "src": NO_TARGET})
+		# Road Rage: against the Trucker, Cole can't be stunned twice in a row and hits harder each time.
+		if u.key == "cole" and u.side == "hero" and u.alive and stunned and not has(u, "stun") and has_enemy("trucker"):
+			u.statuses.append({"kind": "resolve", "dur": 1, "power": 0.0, "src": NO_TARGET})
+			u.aura += 0.1
+			note(u, "Road Rage!", "#ff5a3a")
+		# The Sauce Keeper's promise ran out.
+		if waiting and not has(u, "waiting_sauce") and u.alive:
+			add_status(u, "weaken", 3, 0.25, NO_TARGET, true)
+			note(u, "Sauce never came", "#c08aff")
 		# James slims back down when JimmyTrains wears off.
 		if u.key == "james" and u.alive and u.model != u.base_model and not has(u, "reflect"):
 			u.model = u.base_model
@@ -561,14 +621,27 @@ func act(uid: int, action_id: String, target_uid := NO_TARGET) -> bool:
 			_resource_event(u)
 		emit({"t": "cast", "uid": u.uid, "name": ab.name, "ult": ab.kind == "ultimate"})
 		HeroData.use(action_id, self, u, t, r)
+		last_ability_uid = u.uid
 	_action = ""
 	if u.key == "cam" and not opt.quick:
 		u.aura += 0.03 + 0.01 * (rank(u, "aura_farming") - 1)
+		EnemyData.steal_aura(self, u)
 	if opt.quick:
 		buffed[uid] = true
 	else:
 		acted[uid] = true
 	beat()
+	_after_action()
+	return true
+
+
+## Skips a hero's action (the "Wait" button: for when nothing can be targeted).
+func pass_turn(uid: int) -> bool:
+	var u := unit(uid)
+	if u == null or not ready().has(u):
+		return false
+	note(u, "Waiting", "#9aa0b8")
+	acted[uid] = true
 	_after_action()
 	return true
 
@@ -599,13 +672,44 @@ func _end_hero_phase() -> void:
 		return
 	_queue.clear()
 	for e in enemies():
-		if e.alive:
+		if e.alive and not e.inert:
 			_queue.append(e.uid)
 
 
+## Shows a Cowork pop-up; the fight waits until answer_popup() is called.
+## count > 1 queues more (Mandatory Rollout). The UI shows the "Not now" and
+## "Yes, install" buttons (plus "Upgrade to Pro" if pro), swapped if swap, with a
+## countdown of `timer` seconds (players can lengthen it in Settings).
+func show_popup(boss: BattleUnit, count: int) -> void:
+	popup_count += 1
+	stats.popups += 1
+	pending_popup = {
+		"uid": boss.uid, "left": count - 1, "pro": boss.remix and rng.chance(0.4),
+		"timer": maxf(1.5, 2.5 - 0.25 * (popup_count - 1)), "swap": rng.chance(0.5),
+	}
+	var text: String = "Have you downloaded my Cowork skills yet?" if popup_count == 1 else rng.pick([
+		"Have you downloaded my Cowork skills yet?", "Seriously. It'll save so much time.", "Just one quick install."])
+	emit({"t": "popup", "uid": boss.uid, "text": text,
+		"timer": pending_popup.timer, "swap": pending_popup.swap, "pro": pending_popup.pro})
+
+
+## The player's answer to a pop-up: "dismiss", "install", "pro" or "timeout".
+func answer_popup(choice: String) -> void:
+	if pending_popup.is_empty():
+		return
+	var boss := unit(pending_popup.uid)
+	var left: int = pending_popup.left
+	pending_popup = {}
+	if boss and boss.alive:
+		EnemyData.resolve_popup(self, boss, choice)
+	if not _check_end() and left > 0 and boss and boss.alive:
+		show_popup(boss, left)
+
+
 ## Plays the next enemy's turn (one per call so the renderer can keep up).
+## Does nothing while a pop-up is waiting for an answer.
 func enemy_step() -> void:
-	if phase != "enemy":
+	if phase != "enemy" or not pending_popup.is_empty():
 		return
 	while not _queue.is_empty():
 		var u := unit(_queue.pop_front())
@@ -621,8 +725,13 @@ func enemy_step() -> void:
 
 
 func _enemy_act(u: BattleUnit) -> void:
+	if has(u, "away"):
+		EnemyData.on_return(self, u)
 	if has(u, "stun"):
 		note(u, "Stunned", StatusInfo.INFO.stun.color)
+		return
+	EnemyData.on_turn(self, u)
+	if not u.alive or outcome != "":
 		return
 	if has(u, "confuse") and rng.chance(0.75):
 		note(u, "Confused!", StatusInfo.INFO.confuse.color)
@@ -666,6 +775,11 @@ func pick_hero_target(u: BattleUnit) -> BattleUnit:
 	var hs := foes_of(u)
 	if hs.is_empty():
 		return null
+	# The Angry Trucker's Grudge: half his attacks go at Cole.
+	if u.key == "trucker":
+		var cole := hero("cole")
+		if cole and targetable(cole) and rng.chance(0.5):
+			return cole
 	return rng.weighted(hs, func(h): return 1.6 if h.row == "front" else 1.0)
 
 

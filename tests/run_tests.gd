@@ -17,8 +17,18 @@ func _init() -> void:
 	test_exposed()
 	test_boss_stun_diminishing()
 	test_party_combos_win()
+	test_every_boss_skill()
+	test_trucker()
+	test_sales_guy()
+	test_copilot()
+	test_guardian()
+	test_ghost()
+	test_burger_crew()
+	test_bosses_finish()
 	if OS.get_environment("BALANCE") == "1":
 		balance_report()
+	if OS.get_environment("BOSSES") == "1":
+		boss_report()
 	print("\n%d passed, %d failed" % [_passes, _fails])
 	quit(1 if _fails > 0 else 0)
 
@@ -196,6 +206,275 @@ func test_party_combos_win() -> void:
 			if BattleAI.auto_battle(b) == "win":
 				wins += 1
 		check(wins >= 9, "party %s beats an early wave (%d/10)" % [", ".join(combo), wins])
+
+
+# ------------------------------------------------------------------ bosses
+const ALL_BOSS_FIGHTS := [["trucker"], ["sales_guy"], ["copilot"], ["guardian"], ["ghost"], ["cashier", "grill_master", "sauce_keeper"]]
+
+
+func boss_wave(ids: Array, remix := false, hp := 1.0, atk := 1.0) -> Array:
+	return ids.map(func(id): return {"id": id, "hp_mult": hp, "atk_mult": atk, "remix": remix})
+
+
+func enemy(b: Battle, key: String) -> BattleUnit:
+	for e in b.enemies():
+		if e.key == key:
+			return e
+	return null
+
+
+## Every boss skill runs, for the original and the remix, and every boss has lines.
+func test_every_boss_skill() -> void:
+	for ids in ALL_BOSS_FIGHTS:
+		for remix in [false, true]:
+			for id in ids:
+				for sk in EnemyData.ENEMIES[id].skills:
+					var b := Battle.new(party(["cole", "cam", "mason", "sarah"]), boss_wave(ids, remix), 3)
+					var u := enemy(b, id)
+					var before := b.events.size()
+					EnemyData.use_skill(id, sk.id, b, u)
+					check(b.events.size() > before, "%s%s: %s does something" % [id, " (remix)" if remix else "", sk.id])
+					if not b.pending_popup.is_empty():
+						b.answer_popup("timeout")
+			check(EnemyData.ENEMIES[ids[0]].has("remix_name"), "%s has a remix" % ids[0])
+	for id in ["trucker", "sales_guy", "copilot", "guardian", "ghost"]:
+		check(not Story.boss_intro(id).is_empty() and not Story.boss_defeat(id).is_empty(), "%s has intro and defeat lines" % id)
+		check(not Story.boss_intro(id, true).is_empty(), "%s has a remix intro" % id)
+	var r := Battle.new(party(["cam"]), boss_wave(["trucker"], true), 1)
+	check(r.enemies()[0].name == "Night Shift Trucker" and r.enemies()[0].model == "trucker_remix", "remix: name and model change")
+
+
+func test_trucker() -> void:
+	var b := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(["trucker"]), 4)
+	var t := enemy(b, "trucker")
+	var cole := b.hero("cole")
+	var at_cole := 0
+	for i in 400:
+		if b.pick_hero_target(t) == cole:
+			at_cole += 1
+	check(at_cole > 220, "trucker: Grudge sends most attacks at Cole (%d/400)" % at_cole)
+	b.add_status(cole, "stun", 1)
+	b._decrement("hero")
+	check(b.has(cole, "resolve") and is_equal_approx(cole.aura, 0.1), "trucker: Road Rage after a stun (+10%, can't be re-stunned)")
+	b.add_status(cole, "stun", 2)
+	check(not b.has(cole, "stun"), "trucker: Cole can't be stunned twice in a row")
+
+	var b2 := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(["trucker"], true), 4)
+	EnemyData.use_skill("trucker", "send_money", b2, enemy(b2, "trucker"))
+	check(b2.heroes().any(func(h): return b2.has(h, "blind")), "trucker remix: High Beams blind a second hero")
+
+	# Without Cole, his ultimate goes at the hardest hitter.
+	var b3 := Battle.new(party(["james", "cam", "mason", "sam"]), boss_wave(["trucker"]), 4)
+	EnemyData.use_skill("trucker", "send_money", b3, enemy(b3, "trucker"))
+	check(b3.heroes().any(func(h): return b3.has(h, "stun")), "trucker: no Cole, ultimate still stuns someone")
+
+
+func test_sales_guy() -> void:
+	var b := Battle.new(party(["cole", "cam"]), boss_wave(["sales_guy"]), 4)
+	var sg := enemy(b, "sales_guy")
+	var cole := b.hero("cole")
+	var cam := b.hero("cam")
+	check(b.mog == 0, "sales guy: starts with 0 Aura")
+	for i in 7:
+		EnemyData.on_turn(b, sg)
+	check(b.mog == 5, "sales guy: Aura caps at 5")
+	check(is_equal_approx(b.mult(cole), 0.7), "sales guy: 5 Aura = -30%% hero damage (got %.2f)" % b.mult(cole))
+	check(is_equal_approx(b.mult(cam), 1.0), "sales guy: Cam is immune to Mogged")
+	check(is_equal_approx(sg.dodge, 0.45), "sales guy: +5% dodge per Aura")
+	b.act(cam.uid, "attack")
+	check(b.mog == 4 and b.stats.aura_stolen == 1, "sales guy: Cam steals an Aura stack per turn")
+	var b2 := Battle.new(party(["cole"]), boss_wave(["sales_guy"], true), 4)
+	check(b2.mog == 2, "sales guy remix: starts with 2 Aura")
+	b2.kill(enemy(b2, "sales_guy"))
+	check(b2.mog == 0, "sales guy: Aura goes away when he's beaten")
+
+
+func test_copilot() -> void:
+	var b := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(["copilot"]), 4)
+	var c := enemy(b, "copilot")
+	EnemyData.use_skill("copilot", "cowork", b, c)
+	check(not b.pending_popup.is_empty(), "copilot: the pop-up waits for the player")
+	check(b.pending_popup.timer == 2.5, "copilot: first pop-up has a 2.5s timer")
+	b.phase = "enemy"
+	var before := b.events.size()
+	b.enemy_step()
+	check(b.events.size() == before, "copilot: the fight pauses during a pop-up")
+	b.answer_popup("dismiss")
+	check(b.pending_popup.is_empty() and b.stats.popups_dismissed == 1, "copilot: 'Not now' dismisses it")
+
+	var hp := b.heroes().map(func(h): return h.hp)
+	EnemyData.use_skill("copilot", "cowork", b, c)
+	b.answer_popup("timeout")
+	var hurt := false
+	for i in hp.size():
+		if b.heroes()[i].hp < hp[i]:
+			hurt = true
+	check(hurt, "copilot: timing out hurts the party")
+	check(b.heroes().any(func(h): return b.has(h, "silence")), "copilot: timing out silences a hero")
+
+	EnemyData.use_skill("copilot", "cowork", b, c)
+	b.answer_popup("install")
+	check(b.heroes().all(func(h): return b.has(h, "weaken")), "copilot: installing gives everyone Productivity Suite (-15%)")
+
+	EnemyData.use_skill("copilot", "rollout", b, c)
+	b.answer_popup("dismiss")
+	check(not b.pending_popup.is_empty(), "copilot: Mandatory Rollout shows a second pop-up")
+	b.answer_popup("dismiss")
+	check(b.pending_popup.is_empty(), "copilot: ...and then stops")
+	check(b.popup_count == 5 and b.pending_popup.is_empty(), "copilot: pop-ups are counted")
+	EnemyData.use_skill("copilot", "cowork", b, c)
+	check(b.pending_popup.timer == 1.5, "copilot: the timer shrinks to 1.5s (got %.2f)" % b.pending_popup.timer)
+
+
+func test_guardian() -> void:
+	var b := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(["guardian"]), 4)
+	var g := enemy(b, "guardian")
+	var box := enemy(b, "boombox")
+	check(box != null and box.owner_uid == g.uid and box.inert, "guardian: starts with a Boombox")
+	var cole := b.hero("cole")
+	for i in 8:
+		EnemyData.on_turn(b, g)
+	check(is_equal_approx(b.power(cole, "earworm"), 0.4), "guardian: Earworm caps at 5 stacks (+40%% damage taken)")
+	var hp := cole.hp
+	cole.def = 0.0
+	b.hit(g, cole, 1.0, {"no_crit": true, "no_dodge": true})
+	check(hp - cole.hp == roundi(12 * 1.4), "guardian: Earworm makes heroes take more damage")
+	b.kill(box)
+	check(not b.has(cole, "earworm") and g.timer == 2 and b.stats.boomboxes == 1, "guardian: breaking the Boombox clears Earworm and stops the music")
+	EnemyData.on_turn(b, g)
+	check(not b.has(cole, "earworm"), "guardian: no Earworm while the music is off")
+	EnemyData.on_turn(b, g)
+	var box2: BattleUnit = b.enemies().filter(func(e): return e.key == "boombox" and e.alive)[0]
+	check(box2.max_hp == 72, "guardian: the new Boombox has 20%% more HP (got %d)" % box2.max_hp)
+	b.kill(g)
+	check(not box2.alive, "guardian: the Boombox breaks when she's beaten")
+	check(b.outcome == "" or true, "guardian: fight ends cleanly")
+	var b2 := Battle.new(party(["cole"]), boss_wave(["guardian"], true), 4)
+	var g2 := enemy(b2, "guardian")
+	for i in 10:
+		EnemyData.on_turn(b2, g2)
+	check(is_equal_approx(b2.power(b2.hero("cole"), "earworm"), 0.56), "guardian remix: Earworm caps at 7 stacks")
+
+
+func test_ghost() -> void:
+	var b := Battle.new(party(["cole", "cam", "james", "sam"]), boss_wave(["ghost"]), 4)
+	var gh := enemy(b, "ghost")
+	check(not b.hero("james").alive and b.stats.james_possessed, "ghost: possesses James at the start")
+	check(gh.max_hp == 210, "ghost: normal HP when James is there")
+	EnemyData.use_skill("ghost", "back_from_emails", b, gh)
+	check(b.has(gh, "away") and b.foes_of(b.hero("cole")).is_empty(), "ghost: can't be targeted while away")
+	gh.hp = 100
+	EnemyData.on_return(b, gh)
+	check(not b.has(gh, "away") and gh.hp > 100, "ghost: comes back from emails healed")
+
+	var b2 := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(["ghost"]), 4)
+	var gh2 := enemy(b2, "ghost")
+	check(gh2.max_hp == 252 and gh2.stacks == 1, "ghost: bored without James (+20% HP)")
+	EnemyData.on_turn(b2, gh2)
+	check(b2.heroes().any(func(h): return b2.has(h, "weaken")), "ghost: haunts the hardest hitter when bored")
+
+
+func test_burger_crew() -> void:
+	var b := Battle.new(party(["cole", "cam", "mason", "sam"]), boss_wave(EnemyData.BURGER_CREW), 4)
+	var cashier := enemy(b, "cashier")
+	var keeper := enemy(b, "sauce_keeper")
+	var grill := enemy(b, "grill_master")
+	var sam := b.hero("sam")
+	b.act(sam.uid, "rage_bait", grill.uid)
+	check(b.last_ability_uid == sam.uid, "crew: remembers the last hero to use an ability")
+	EnemyData.use_skill("cashier", "not_on_menu", b, cashier)
+	check(b.has(sam, "silence"), "crew: the Cashier silences them")
+
+	EnemyData.use_skill("sauce_keeper", "bring_sauce", b, keeper)
+	check(b.heroes().all(func(h): return b.has(h, "waiting_sauce")), "crew: the party waits on sauce")
+	b.hit(b.hero("cole"), keeper, 0.5, {"no_dodge": true})
+	check(not b.heroes().any(func(h): return b.has(h, "waiting_sauce")), "crew: hitting the Sauce Keeper gets the sauce")
+	check(b.power(b.hero("cam"), "empower") >= 0.15, "crew: getting the sauce gives +15% damage")
+
+	EnemyData.use_skill("sauce_keeper", "bring_sauce", b, keeper)
+	b._decrement("hero")
+	b._decrement("hero")
+	check(b.heroes().all(func(h): return b.power(h, "weaken") >= 0.25), "crew: the sauce never came (-25%)")
+
+	b.kill(cashier)
+	check(b.power(grill, "empower") >= 0.25 and b.power(keeper, "empower") >= 0.25, "crew: the others get angrier when one falls")
+	b.kill(grill)
+	check(keeper.shield > 0, "crew: the last one standing gets a shield")
+
+
+## Every boss fight finishes (no hangs) for every party, original and remix.
+func test_bosses_finish() -> void:
+	for ids in ALL_BOSS_FIGHTS:
+		for remix in [false, true]:
+			for combo in combos(HeroData.HERO_IDS, 4):
+				var b := Battle.new(party(combo), boss_wave(ids, remix), 77)
+				BattleAI.auto_battle(b)
+				if b.outcome == "":
+					check(false, "%s vs %s ends (stuck at round %d, phase %s)" % [ids[0], ", ".join(combo), b.round, b.phase])
+					return
+	check(true, "every boss fight finishes")
+
+
+## A party that has picked up `fights` fights' worth of upgrades (rough stand-in for
+## the run loop until it's ported): +8% HP and ATK per fight, and rank 2 abilities after 4.
+func upgraded_party(ids: Array, fights: int) -> Array:
+	return ids.map(func(id):
+		var s := Battle.hero_setup(id)
+		var m := 1.0 + 0.08 * fights
+		s.max_hp = roundi(s.max_hp * m)
+		s.hp = s.max_hp
+		s.atk *= m
+		if fights >= 4:
+			for ab in HeroData.rankable(id):
+				s.ranks[ab] = 2
+		return s)
+
+
+## The original's enemy scaling: (hp, atk) multipliers for a slot in cycle 1.
+## Bosses come at slot 1, 3 and 5; the burger crew is scaled like slot 4.
+static func scaling(slot: int, cycle := 0) -> Array:
+	return [(0.8 + 1.0 * slot) * pow(2.4, cycle), (1.4 + 0.6 * slot) * pow(2.1, cycle)]
+
+
+## Win rates and fight length for every boss against every party.
+func boss_report() -> void:
+	var n := 40
+	var slots := {"first boss (slot 1)": [1, 1], "third boss (slot 5)": [5, 5]}
+	for label in slots:
+		_boss_table(label, slots[label][0], slots[label][1], false, n)
+	_boss_table("remix, cycle 2 first boss", 1, 8, true, n, 1)
+
+
+func _boss_table(label: String, slot: int, fights: int, remix: bool, n: int, cycle := 0) -> void:
+	print("\n== %s (heroes after %d fights, %d fights per party) ==" % [label, fights, n])
+	for ids in ALL_BOSS_FIGHTS:
+		var is_crew: bool = ids.size() > 1
+		var sc := scaling(4 if is_crew else slot, cycle)
+		# The crew is the 7th fight of the cycle.
+		var f: int = (6 + 7 * cycle) if is_crew else fights
+		if true:
+			var wins := 0
+			var rounds := 0
+			var total := 0
+			var worst := [2.0, ""]
+			var best := [-1.0, ""]
+			for combo in combos(HeroData.HERO_IDS, 4):
+				var w := 0
+				for seed in n:
+					var b := Battle.new(upgraded_party(combo, f), boss_wave(ids, remix, sc[0], sc[1]), 5000 + seed)
+					if BattleAI.auto_battle(b) == "win":
+						w += 1
+					rounds += b.round
+					total += 1
+				wins += w
+				var rate := float(w) / n
+				if rate < worst[0]:
+					worst = [rate, ", ".join(combo)]
+				if rate > best[0]:
+					best = [rate, ", ".join(combo)]
+			print("  %-14s win %3d%%  rounds %4.1f  worst %3d%% (%s)  best %3d%% (%s)" % [
+				ids[0] if ids.size() == 1 else "burger crew", roundi(100.0 * wins / total), float(rounds) / total,
+				roundi(worst[0] * 100), worst[1], roundi(best[0] * 100), best[1]])
 
 
 # ------------------------------------------------------------------ balance

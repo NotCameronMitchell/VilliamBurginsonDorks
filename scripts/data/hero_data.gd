@@ -1,8 +1,8 @@
 class_name HeroData
 extends RefCounted
 ## The heroes, their abilities and weapons. Ported from the original's
-## src/data/heroes.ts, with the sequel's balance changes (docs/GAME_DESIGN.md ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§5)
-## and the two new heroes, Sam and Sarah (ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§3b).
+## src/data/heroes.ts, with the sequel's balance changes (docs/GAME_DESIGN.md §5)
+## and the two new heroes, Sam and Sarah (§3b).
 ##
 ## To add a hero: add it to HERO_IDS and HEROES, its abilities to ABILITIES (plus a
 ## `describe` and `use` case), its weapons to WEAPONS (plus a `weapon_attack` case)

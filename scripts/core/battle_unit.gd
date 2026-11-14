@@ -38,6 +38,13 @@ var passive_used := false
 var revive_next := false
 var stuns_taken := 0 ## boss stun diminishing returns
 
+## Bosses
+var remix := false ## the returning, remixed version of a boss
+var inert := false ## takes no turns (the Boombox)
+var owner_uid := -1 ## summons die with their owner
+var stacks := 0 ## boss-specific counter (Aura, Boomboxes broken, ...)
+var timer := 0 ## boss-specific countdown (music off, ...)
+
 ## Sam's mana and Sarah's energy (0 max = the hero doesn't use it).
 var mp := 0.0
 var max_mp := 0.0

@@ -39,7 +39,7 @@ Coworkers stand at their desks; walk into their line of sight and you get a **"!
 and a minion fight. Each boss stands at the end of their area, and you have to talk
 to them to start the fight.
 
-**Route (one cycle):** like the original, a cycle is minion â†’ boss three times, then
+**Route (one cycle):** like the original, a cycle is minion → boss three times, then
 the burger joint. Each cycle, **3 of the 5 office bosses are drawn at random**. Their
 areas open on the office map, and the other two areas have an "Out of Office" sign on
 the door. The bosses' areas are the Parking Lot, Desk Pods, Meeting Room, Middle of
@@ -57,11 +57,11 @@ the camera punches in on crits, and ultimates get a full-screen cut-in banner
 (TRANSFER TO UW, NISSAN TITAN, ...).
 
 **Battle HUD:**
-- A name plate for each unit with an HP bar that drains smoothly (green â†’ yellow â†’ red),
+- A name plate for each unit with an HP bar that drains smoothly (green → yellow → red),
   a level/rank pip, and status icons.
 - A text box at the bottom: *"The Angry Trucker used SEND MY MONEY NOW!"*, typed out
   one letter at a time and skipped with a click or tap.
-- A 2Ã—2 move menu (the hero's four abilities) plus Attack, Ultimate and Bag (items).
+- A 2×2 move menu (the hero's four abilities) plus Attack, Ultimate and Bag (items).
   Each move shows its cooldown and a color-coded type tag (Damage / Buff / Debuff / Heal).
 - Hold or right-click a move for its full tooltip.
 
@@ -202,7 +202,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *A semi idling across four parking spaces. He's here about an invoice.*
 
-- **HP** 280 Â· **ATK** 13 Â· **DEF** 10%
+- **HP** 280 · **ATK** 13 · **DEF** 10%
 - **Grudge (passive):** he has it out for Cole. Half of his single-target attacks go
   at Cole, and each hit on Cole has a 35% chance to stun him for a turn.
 - **SEND MY MONEY NOW (ultimate, every 5 turns):** honks the air horn at Cole:
@@ -223,7 +223,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *Nobody knows his name, what he sells, or why there's a coffee stirrer over his ear.*
 
-- **HP** 260 Â· **ATK** 12 Â· **Dodge** 20%
+- **HP** 260 · **ATK** 12 · **Dodge** 20%
 - **Aura (passive):** he gains 1 Aura stack every turn (max 5). Each stack gives the
   whole party *Mogged*: -6% damage per stack. He never speaks: every speech bubble is
   just "*aura*" with a sparkle.
@@ -243,7 +243,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *A hooded figure with a glowing laptop and a scythe. He just wants to save you some time.*
 
-- **HP** 270 Â· **ATK** 12
+- **HP** 290 · **ATK** 12
 - **Cowork Skills Pop-Up (gimmick, every 3 turns):** the game stops and a pop-up
   appears: *"Have you downloaded my Cowork skills yet?"* with a countdown bar
   (2.5 seconds at first, shrinking to 1.5 seconds) and two buttons:
@@ -267,7 +267,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 
 *She controls the office speaker. She has one playlist. It is on repeat.*
 
-- **HP** 290 Â· **ATK** 12
+- **HP** 260 · **ATK** 12
 - **On Repeat (passive):** every turn she plays a song, and the party gets 1
   *Earworm* stack: -8% damage reduction per stack (so they take more damage), max 5.
 - **The Boombox:** a separate enemy on her platform (60 HP). Breaking it stops the
@@ -286,7 +286,7 @@ and normal bosses still scale up each cycle. Each boss lists:
 *James left for a new job, but his old desk was never cleaned out. The James who
 used to work here is still logged in.*
 
-- **HP** 230 Â· **ATK** 12
+- **HP** 210 · **ATK** 12
 - **Lore:** this is party James's own old-job self, wearing the brown matching set and
   the mustache in see-through ghost blue. The intro plays it straight:
   - **Ghost:** "Back from emails going through lunch."
@@ -319,9 +319,9 @@ crew / cook / coworker fight.
 
 | Member | HP | ATK | Role |
 |---|---|---|---|
-| The Cashier | 160 | 11 | **"That's not on the menu":** Silences the last hero who used an ability, for 2 turns. |
-| The Grill Master | 180 | 13 | **Flat-Top Flare:** single-target Burn, and an AoE grease splash every 3 turns. |
-| The Sauce Keeper | 200 | 10 | Holds the sauce. Heals and shields the other two. |
+| The Cashier | 75 | 8 | **"That's not on the menu":** Silences the last hero who used an ability, for 2 turns. |
+| The Grill Master | 85 | 9 | **Flat-Top Flare:** single-target Burn, and an AoE grease splash every 3 turns. |
+| The Sauce Keeper | 95 | 7 | Holds the sauce. Heals and shields the other two. |
 
 - **"Yeah I'll bring you the sauce..." (Sauce Keeper ultimate):** the party gets
   *Waiting on Sauce*. If the Sauce Keeper doesn't take damage within 2 turns, it turns
@@ -336,6 +336,18 @@ crew / cook / coworker fight.
 > **Naming note:** this design calls them "The Villiam Burginson Crew", so the
 > jokes come from the burger job and the sauce gatekeeping. Tell me if you want a
 > different name.
+
+**Boss simulator check.** Every boss was simulated against all 15 parties, scaled like
+the original (first boss ×1.8 HP / ×2.0 ATK, third boss ×5.8 / ×4.4, crew ×4.8 / ×3.8)
+with a rough stand-in for hero upgrades. In cycle 1:
+- First-slot bosses take 5-6 rounds.
+- Third-slot bosses take 10-15 rounds, with the Guardian and the Ghost longest.
+- The crew takes about 10 rounds and wins 99%.
+
+In cycle 2 the remixed crew wins about 8%. That's close to the original's 18% at the
+same point, and it will move once the real run loop (shop, upgrade picks) is ported.
+Smoothing the cycle scaling (change #2 below) happens with the run loop. Run
+`BOSSES=1` with `tests/run_tests.gd` to see the report.
 
 ## 5. Balance changes
 
@@ -358,8 +370,8 @@ The simulator says:
 |---|---|---|
 | 1 | Boss HP -15%, or hero damage +10% in cycle 1. Target about 9 rounds per boss. | Boss fights are too long. |
 | 2 | Smooth `scaling()` so the third boss isn't a spike. | The 6B death clusters. |
-| 3 | **Transfer to UW:** triple damage becomes double, and the full max HP shield becomes 50%. Still heals to full. | Heal + 100% shield + 3Ã— damage is the strongest button in the game. |
-| 4 | **Daily Dollar:** scales off ATK instead of James's max HP, and goes to cooldown 3. | 20% of 150 HP is about 2.5Ã— his ATK as unavoidable flat damage on a 2-turn cooldown. |
+| 3 | **Transfer to UW:** triple damage becomes double, and the full max HP shield becomes 50%. Still heals to full. | Heal + 100% shield + 3× damage is the strongest button in the game. |
+| 4 | **Daily Dollar:** scales off ATK instead of James's max HP, and goes to cooldown 3. | 20% of 150 HP is about 2.5× his ATK as unavoidable flat damage on a 2-turn cooldown. |
 | 5 | **Stuns on bosses:** each stun after the first in a fight lasts 1 turn less (minimum 1), and Resolve lasts 2 turns. | Iceland Story + Nissan Titan + Mind Goblin can stun-lock a boss. |
 | 6 | **We Go Next:** trigger threshold rises from 15% to 25% HP. | It almost never fires, so Mason's passive does nothing. |
 | 7 | **Secret Sauce / Seasoned Veterans:** +5%/+6% per level becomes +3%/+4%, max level stays 10. | Max meta trivializes the game. |
